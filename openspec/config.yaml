@@ -1,0 +1,20 @@
+schema: spec-driven
+context: |
+  默认使用中文进行沟通和文档编写。
+  OpenSpec 产物优先使用中文描述业务背景、设计决策、需求说明与任务拆分。
+  对于 OpenSpec schema 或 CLI 必须保留的固定英文结构标记，例如 ADDED Requirements、Requirement、Scenario、WHEN、THEN，应保留原样以确保工具兼容。
+  技术标识符、能力目录名、接口名、数据库字段名和环境变量名可以保留英文。
+
+rules:
+  proposal:
+    - 使用中文撰写变更背景、范围与影响说明。
+    - capability 名称保持 kebab-case 英文，解释内容使用中文。
+  design:
+    - 使用中文撰写上下文、目标、决策、风险和迁移方案。
+    - 技术决策要先说明为什么，再说明备选方案。
+  specs:
+    - 需求正文与场景描述使用中文。
+    - 保留 OpenSpec 必需的英文结构关键字与 capability 路径名。
+  tasks:
+    - 任务描述使用中文。
+    - 必须保持 `- [ ]` 复选框格式，便于 apply 阶段跟踪。
