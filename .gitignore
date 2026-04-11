@@ -29,6 +29,7 @@ temp/
 node_modules/
 .next/
 .nuxt/
+.output/
 .svelte-kit/
 dist/
 build/
@@ -46,4 +47,3 @@ venv/
 
 # Test and report artifacts
 playwright-report/
-

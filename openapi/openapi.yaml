@@ -1,0 +1,320 @@
+openapi: 3.1.0
+info:
+  title: PhotoNest API
+  version: 0.1.0
+  summary: 统一照片库的导入、发现与系统健康接口骨架
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: System
+  - name: Import
+  - name: Discovery
+paths:
+  /api/v1/health:
+    get:
+      tags: [System]
+      summary: 获取 API 与依赖健康状态
+      operationId: getHealth
+      responses:
+        '200':
+          description: 健康检查结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/v1/import/sessions:
+    post:
+      tags: [Import]
+      summary: 创建导入会话
+      operationId: createImportSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateImportSessionRequest'
+      responses:
+        '201':
+          description: 导入会话已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSession'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/import/sessions/{sessionId}/uploads:
+    post:
+      tags: [Import]
+      summary: 为上传对象签发预签名信息
+      operationId: createUploadTicket
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUploadTicketRequest'
+      responses:
+        '201':
+          description: 上传凭据已签发
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadTicket'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/import/sessions/{sessionId}/confirm:
+    post:
+      tags: [Import]
+      summary: 确认上传结果并闭合导入状态机
+      operationId: confirmUpload
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmUploadRequest'
+      responses:
+        '202':
+          description: 上传已确认并开始后续处理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetAcceptedResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/discovery/timeline:
+    get:
+      tags: [Discovery]
+      summary: 获取按时间线排列的资产摘要
+      operationId: listTimelineAssets
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+      responses:
+        '200':
+          description: 时间线结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimelineResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+components:
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    ErrorResponse:
+      description: 标准错误响应
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required: [code, message, traceId]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        traceId:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+    CursorPageInfo:
+      type: object
+      required: [hasNextPage]
+      properties:
+        nextCursor:
+          type: string
+        hasNextPage:
+          type: boolean
+    HealthCheck:
+      type: object
+      required: [name, healthy, checkedAt]
+      properties:
+        name:
+          type: string
+        healthy:
+          type: boolean
+        detail:
+          type: string
+        checkedAt:
+          type: string
+          format: date-time
+    HealthResponse:
+      type: object
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, failed]
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthCheck'
+    CreateImportSessionRequest:
+      type: object
+      required: [libraryId, source]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        source:
+          type: string
+          enum: [web-upload, desktop-batch, export-restore]
+        expectedItemCount:
+          type: integer
+          minimum: 1
+        note:
+          type: string
+    ImportSession:
+      type: object
+      required: [id, libraryId, status, source, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        libraryId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [draft, awaiting-upload, uploaded, confirmed, failed]
+        source:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    CreateUploadTicketRequest:
+      type: object
+      required: [fileName, contentType, contentLength]
+      properties:
+        fileName:
+          type: string
+        contentType:
+          type: string
+        contentLength:
+          type: integer
+          minimum: 1
+        contentSha256:
+          type: string
+        multipart:
+          type: boolean
+          default: false
+    UploadTicket:
+      type: object
+      required: [sessionId, objectKey, method, url, expiresAt]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        objectKey:
+          type: string
+        method:
+          type: string
+          enum: [PUT, POST]
+        url:
+          type: string
+          format: uri
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        formFields:
+          type: object
+          additionalProperties:
+            type: string
+        expiresAt:
+          type: string
+          format: date-time
+        checksumAlgorithm:
+          type: string
+    ConfirmUploadRequest:
+      type: object
+      required: [objectKey, contentLength]
+      properties:
+        objectKey:
+          type: string
+        contentLength:
+          type: integer
+          minimum: 1
+        etag:
+          type: string
+        contentSha256:
+          type: string
+    AssetAcceptedResponse:
+      type: object
+      required: [assetId, processingStage, importSessionId]
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        importSessionId:
+          type: string
+          format: uuid
+        processingStage:
+          type: string
+          enum:
+            [
+              accepted,
+              stored,
+              derivatives-ready,
+              metadata-ready,
+              ai-ready,
+              indexed,
+              partial-failure,
+            ]
+    AssetSummary:
+      type: object
+      required: [assetId, mediaType, timelineTimestamp, processingStage, backupStatus]
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        mediaType:
+          type: string
+        timelineTimestamp:
+          type: string
+          format: date-time
+        processingStage:
+          type: string
+        backupStatus:
+          type: string
+        thumbnailToken:
+          type: string
+        captionPreview:
+          type: string
+    TimelineResponse:
+      type: object
+      required: [items, pageInfo]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetSummary'
+        pageInfo:
+          $ref: '#/components/schemas/CursorPageInfo'

@@ -1,0 +1,16 @@
+{
+  "name": "photonest",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @photonest/web dev",
+    "build:web": "pnpm --filter @photonest/web build",
+    "gen:client": "pnpm exec openapi-typescript ./openapi/openapi.yaml -o ./apps/web/lib/api/schema.d.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "prettier": "^3.8.2"
+  }
+}

@@ -1,0 +1,100 @@
+service:
+  name: photonest
+  environment: development
+
+server:
+  port: 8080
+
+database:
+  host: localhost
+  port: 5432
+  name: photonest
+  user: postgres
+  password:
+    env: PHOTONEST_DATABASE_PASSWORD
+  dsn:
+    env: PHOTONEST_DATABASE_DSN
+  sslMode: disable
+  maxOpenConns: 20
+  maxIdleConns: 5
+
+queue:
+  address: localhost:6379
+  password:
+    env: PHOTONEST_REDIS_PASSWORD
+    allowEmpty: true
+  db: 0
+  namespace: photonest
+  maxConsumers: 8
+
+storageProviders:
+  primary:
+    name: primary-cos
+    kind: tencent-cos
+    bucket: photonest-main
+    region: ap-guangzhou
+    endpoint: https://cos.ap-guangzhou.myqcloud.com
+    keyPrefix: libraries/main/
+    accessKeyId:
+      env: PHOTONEST_COS_SECRET_ID
+    accessKeySecret:
+      env: PHOTONEST_COS_SECRET_KEY
+    uploadPresignTTL: 15m
+    downloadPresignTTL: 5m
+    allowedOrigins:
+      - http://localhost:3000
+      - http://127.0.0.1:3000
+    privateRead: true
+    corsConfigPath: ./config/examples/cos-cors.json
+    healthCheckURL: https://cos.ap-guangzhou.myqcloud.com
+    publicReadBlockMode: fail-fast
+  backup:
+    - name: backup-cos
+      kind: tencent-cos
+      bucket: photonest-backup
+      region: ap-guangzhou
+      endpoint: https://cos.ap-guangzhou.myqcloud.com
+      keyPrefix: backup/library-main/
+      accessKeyId:
+        env: PHOTONEST_COS_BACKUP_SECRET_ID
+      accessKeySecret:
+        env: PHOTONEST_COS_BACKUP_SECRET_KEY
+      uploadPresignTTL: 15m
+      downloadPresignTTL: 5m
+      allowedOrigins:
+        - http://localhost:3000
+      privateRead: true
+      corsConfigPath: ./config/examples/cos-cors.json
+      healthCheckURL: https://cos.ap-guangzhou.myqcloud.com
+      publicReadBlockMode: fail-fast
+
+aiProviders:
+  - name: remote-openai
+    kind: openai-compatible
+    endpoint: https://api.openai.com/v1
+    model: gpt-4.1-mini
+    capabilities:
+      - caption
+      - ocr
+      - embedding
+    token:
+      env: PHOTONEST_AI_OPENAI_TOKEN
+    timeout: 20s
+    allowRemote: true
+    executionBoundary: remote-service
+    healthCheckURL: https://api.openai.com/v1/models
+
+telemetry:
+  logLevel: info
+  enableMetrics: true
+  enableTracing: true
+  enableStructured: true
+  redactionProfile: strict
+
+security:
+  csrfEnabled: true
+  recentAuthWindow: 15m
+  uploadCredentialTTL: 15m
+  downloadCredentialTTL: 5m
+  debugRetention: 24h
+  strictPrivateObjectCheck: true

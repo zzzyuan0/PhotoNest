@@ -1,0 +1,16 @@
+version: '2'
+sql:
+  - engine: 'postgresql'
+    queries:
+      - './db/queries/assets.sql'
+      - './db/queries/import_sessions.sql'
+      - './db/queries/backup_records.sql'
+    schema:
+      - './db/migrations'
+    gen:
+      go:
+        package: 'dbgen'
+        out: './internal/dbgen'
+        sql_package: 'pgx/v5'
+        emit_json_tags: true
+        emit_interface: true

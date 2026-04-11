@@ -1,0 +1,7 @@
+.codex/
+openspec/
+node_modules/
+apps/web/.output/
+apps/web/lib/api/schema.d.ts
+pnpm-lock.yaml
+README.md
