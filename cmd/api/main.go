@@ -29,9 +29,14 @@ func main() {
 		log.Fatalf("validate storage providers: %v", err)
 	}
 
+	handler, err := httpserver.New(cfg, health.NewDefault(cfg))
+	if err != nil {
+		log.Fatalf("build http server: %v", err)
+	}
+
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:           httpserver.New(cfg, health.NewDefault(cfg)),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

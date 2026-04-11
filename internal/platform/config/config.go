@@ -105,6 +105,27 @@ type SecurityConfig struct {
 	DownloadCredentialTTL    time.Duration `yaml:"downloadCredentialTTL"`
 	DebugRetention           time.Duration `yaml:"debugRetention"`
 	StrictPrivateObjectCheck bool          `yaml:"strictPrivateObjectCheck"`
+	Session                  SessionConfig `yaml:"session"`
+	BootstrapAuth            BootstrapAuthConfig `yaml:"bootstrapAuth"`
+}
+
+type SessionConfig struct {
+	CookieName     string      `yaml:"cookieName"`
+	CSRFCookieName string      `yaml:"csrfCookieName"`
+	CSRFHeaderName string      `yaml:"csrfHeaderName"`
+	SigningKey     SecretValue `yaml:"signingKey"`
+	MaxAge         time.Duration `yaml:"maxAge"`
+	SecureCookies  bool        `yaml:"secureCookies"`
+	SameSite       string      `yaml:"sameSite"`
+}
+
+type BootstrapAuthConfig struct {
+	Username    string      `yaml:"username"`
+	Password    SecretValue `yaml:"password"`
+	Subject     string      `yaml:"subject"`
+	DisplayName string      `yaml:"displayName"`
+	Roles       []string    `yaml:"roles"`
+	LibraryIDs  []string    `yaml:"libraryIds"`
 }
 
 func DefaultPath() string {
@@ -184,6 +205,33 @@ func (c *AppConfig) applyDefaults() {
 	if c.Security.DebugRetention == 0 {
 		c.Security.DebugRetention = 24 * time.Hour
 	}
+	if c.Security.Session.CookieName == "" {
+		c.Security.Session.CookieName = "photonest_session"
+	}
+	if c.Security.Session.CSRFCookieName == "" {
+		c.Security.Session.CSRFCookieName = "photonest_csrf"
+	}
+	if c.Security.Session.CSRFHeaderName == "" {
+		c.Security.Session.CSRFHeaderName = "X-CSRF-Token"
+	}
+	if c.Security.Session.MaxAge == 0 {
+		c.Security.Session.MaxAge = 12 * time.Hour
+	}
+	if c.Security.Session.SameSite == "" {
+		c.Security.Session.SameSite = "strict"
+	}
+	if c.Security.BootstrapAuth.Username == "" {
+		c.Security.BootstrapAuth.Username = "admin"
+	}
+	if c.Security.BootstrapAuth.Subject == "" {
+		c.Security.BootstrapAuth.Subject = "bootstrap-admin"
+	}
+	if c.Security.BootstrapAuth.DisplayName == "" {
+		c.Security.BootstrapAuth.DisplayName = "Bootstrap Admin"
+	}
+	if len(c.Security.BootstrapAuth.Roles) == 0 {
+		c.Security.BootstrapAuth.Roles = []string{"admin"}
+	}
 }
 
 func (c AppConfig) Validate(ctx context.Context) error {
@@ -228,6 +276,77 @@ func (c AppConfig) Validate(ctx context.Context) error {
 		if _, err := provider.RedactedSummary(ctx); err != nil {
 			return fmt.Errorf("ai provider %s: %w", provider.Name, err)
 		}
+	}
+	if err := c.Security.Validate(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c SecurityConfig) Validate(ctx context.Context) error {
+	switch {
+	case c.RecentAuthWindow <= 0 || c.RecentAuthWindow > 24*time.Hour:
+		return fmt.Errorf("recentAuthWindow must be between 1ns and 24h")
+	case c.UploadCredentialTTL <= 0 || c.UploadCredentialTTL > 15*time.Minute:
+		return fmt.Errorf("uploadCredentialTTL must be between 1ns and 15m")
+	case c.DownloadCredentialTTL <= 0 || c.DownloadCredentialTTL > 5*time.Minute:
+		return fmt.Errorf("downloadCredentialTTL must be between 1ns and 5m")
+	case c.DebugRetention <= 0 || c.DebugRetention > 30*24*time.Hour:
+		return fmt.Errorf("debugRetention must be between 1ns and 720h")
+	}
+
+	if err := c.Session.Validate(ctx); err != nil {
+		return fmt.Errorf("security session: %w", err)
+	}
+	if err := c.BootstrapAuth.Validate(ctx); err != nil {
+		return fmt.Errorf("security bootstrap auth: %w", err)
+	}
+
+	return nil
+}
+
+func (c SessionConfig) Validate(ctx context.Context) error {
+	switch {
+	case strings.TrimSpace(c.CookieName) == "":
+		return fmt.Errorf("cookieName is required")
+	case strings.TrimSpace(c.CSRFCookieName) == "":
+		return fmt.Errorf("csrfCookieName is required")
+	case strings.TrimSpace(c.CSRFHeaderName) == "":
+		return fmt.Errorf("csrfHeaderName is required")
+	case c.MaxAge <= 0 || c.MaxAge > 7*24*time.Hour:
+		return fmt.Errorf("maxAge must be between 1ns and 168h")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(c.SameSite)) {
+	case "strict", "lax", "none":
+	default:
+		return fmt.Errorf("sameSite must be one of strict, lax or none")
+	}
+
+	signingKey, err := c.SigningKey.Resolve(ctx, ResolveOptions{})
+	if err != nil {
+		return fmt.Errorf("resolve signingKey: %w", err)
+	}
+	if len(signingKey) < 32 {
+		return fmt.Errorf("signingKey must be at least 32 bytes")
+	}
+
+	return nil
+}
+
+func (c BootstrapAuthConfig) Validate(ctx context.Context) error {
+	switch {
+	case strings.TrimSpace(c.Username) == "":
+		return fmt.Errorf("username is required")
+	case strings.TrimSpace(c.Subject) == "":
+		return fmt.Errorf("subject is required")
+	case len(c.Roles) == 0:
+		return fmt.Errorf("at least one role is required")
+	}
+
+	if _, err := c.Password.Resolve(ctx, ResolveOptions{}); err != nil {
+		return fmt.Errorf("resolve password: %w", err)
 	}
 
 	return nil

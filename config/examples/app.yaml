@@ -98,3 +98,20 @@ security:
   downloadCredentialTTL: 5m
   debugRetention: 24h
   strictPrivateObjectCheck: true
+  session:
+    cookieName: photonest_session
+    csrfCookieName: photonest_csrf
+    csrfHeaderName: X-CSRF-Token
+    signingKey:
+      env: PHOTONEST_SESSION_SIGNING_KEY
+    maxAge: 12h
+    secureCookies: false
+    sameSite: strict
+  bootstrapAuth:
+    username: admin
+    password:
+      env: PHOTONEST_BOOTSTRAP_PASSWORD
+    subject: bootstrap-admin
+    displayName: Bootstrap Admin
+    roles:
+      - admin

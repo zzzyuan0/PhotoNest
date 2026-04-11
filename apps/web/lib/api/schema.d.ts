@@ -21,6 +21,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 使用 bootstrap 凭据创建认证会话 */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前认证会话 */
+        get: operations["getCurrentSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 刷新近期认证状态 */
+        post: operations["refreshRecentAuthentication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/import/sessions": {
         parameters: {
             query?: never;
@@ -89,6 +140,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discovery/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 以统一授权边界执行搜索 */
+        get: operations["searchAssets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/{assetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取单个资产详情 */
+        get: operations["getAssetDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/{assetId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 为单个资产申请受控下载访问 */
+        post: operations["requestAssetDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/batch-downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建批量下载请求 */
+        post: operations["createBatchDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建导出任务 */
+        post: operations["createExportJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/providers/{providerName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 Provider 设置 */
+        put: operations["updateProviderSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/privacy-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新隐私策略 */
+        put: operations["updatePrivacyPolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/debug/provider-runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查看 Provider 调试保留记录 */
+        get: operations["getProviderRunDebug"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -116,6 +303,33 @@ export interface components {
             /** @enum {string} */
             status: "ok" | "degraded" | "failed";
             checks: components["schemas"]["HealthCheck"][];
+        };
+        LoginRequest: {
+            username: string;
+            password: string;
+        };
+        RefreshRecentAuthRequest: {
+            password: string;
+        };
+        AuthSession: {
+            id: string;
+            subjectId: string;
+            displayName: string;
+            roles: string[];
+            libraryIds: string[];
+            authMethod: string;
+            /** Format: date-time */
+            authenticatedAt: string;
+            /** Format: date-time */
+            recentAuthAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            csrfToken: string;
+        };
+        AuthSessionResponse: {
+            session: components["schemas"]["AuthSession"];
+            accessToken?: string;
+            csrfToken?: string;
         };
         CreateImportSessionRequest: {
             /** Format: uuid */
@@ -188,8 +402,107 @@ export interface components {
             captionPreview?: string;
         };
         TimelineResponse: {
+            /** Format: uuid */
+            libraryId: string;
             items: components["schemas"]["AssetSummary"][];
             pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        SearchResponse: {
+            /** Format: uuid */
+            libraryId: string;
+            query: string;
+            items: components["schemas"]["AssetSummary"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        AssetDetail: {
+            /** Format: uuid */
+            assetId: string;
+            /** Format: uuid */
+            libraryId: string;
+            mediaType: string;
+            /** Format: date-time */
+            capturedAt?: string;
+            processingStage: string;
+            backupStatus: string;
+            captionPreview?: string;
+            thumbnailToken?: string;
+        };
+        DownloadGrant: {
+            /** Format: uuid */
+            assetId: string;
+            /** @enum {string} */
+            status: "pending" | "ready";
+            /** Format: uri */
+            url?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+        };
+        BatchDownloadRequest: {
+            /** Format: uuid */
+            libraryId: string;
+            assetIds: string[];
+        };
+        BatchDownloadJob: {
+            /** Format: uuid */
+            jobId: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "ready" | "failed";
+        };
+        ExportRequest: {
+            /** Format: uuid */
+            libraryId: string;
+            /** @enum {string} */
+            scope: "library" | "album" | "date-range";
+            /** Format: uuid */
+            albumId?: string;
+            /** Format: date */
+            dateFrom?: string;
+            /** Format: date */
+            dateTo?: string;
+        };
+        ExportJob: {
+            /** Format: uuid */
+            jobId: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "ready" | "failed";
+            /** Format: uri */
+            downloadUrl?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+        };
+        UpdateProviderSettingsRequest: {
+            enabled?: boolean;
+            rotateSecrets?: boolean;
+            note?: string;
+        };
+        ProviderSettingsResponse: {
+            providerName: string;
+            /** @enum {string} */
+            status: "pending" | "updated";
+        };
+        UpdatePrivacyPolicyRequest: {
+            /** @enum {string} */
+            gpsMode: "hidden" | "owner-only";
+            /** @enum {string} */
+            ocrMode: "hidden" | "preview" | "full";
+            /** @enum {string} */
+            captionMode: "hidden" | "preview" | "full";
+            /** @enum {string} */
+            embeddingMode: "disabled" | "private";
+        };
+        PrivacyPolicy: {
+            gpsMode: string;
+            ocrMode: string;
+            captionMode: string;
+            embeddingMode: string;
+        };
+        ProviderRunDebugRecord: {
+            /** Format: uuid */
+            runId: string;
+            status: string;
+            debugPayload?: {
+                [key: string]: unknown;
+            };
         };
     };
     responses: {
@@ -205,6 +518,10 @@ export interface components {
     };
     parameters: {
         SessionId: string;
+        AssetId: string;
+        ProviderName: string;
+        RunId: string;
+        LibraryId: string;
     };
     requestBodies: never;
     headers: never;
@@ -230,6 +547,77 @@ export interface operations {
                     "application/json": components["schemas"]["HealthResponse"];
                 };
             };
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description 登录成功并返回会话与访问令牌 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSessionResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    getCurrentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前会话信息 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSessionResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    refreshRecentAuthentication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshRecentAuthRequest"];
+            };
+        };
+        responses: {
+            /** @description 已刷新近期认证状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSessionResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
         };
     };
     createImportSession: {
@@ -313,7 +701,8 @@ export interface operations {
     };
     listTimelineAssets: {
         parameters: {
-            query?: {
+            query: {
+                libraryId: components["parameters"]["LibraryId"];
                 cursor?: string;
                 limit?: number;
             };
@@ -330,6 +719,207 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TimelineResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    searchAssets: {
+        parameters: {
+            query: {
+                libraryId: components["parameters"]["LibraryId"];
+                query: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 搜索结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAssetDetail: {
+        parameters: {
+            query: {
+                libraryId: components["parameters"]["LibraryId"];
+            };
+            header?: never;
+            path: {
+                assetId: components["parameters"]["AssetId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 资产详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetDetail"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    requestAssetDownload: {
+        parameters: {
+            query: {
+                libraryId: components["parameters"]["LibraryId"];
+            };
+            header?: never;
+            path: {
+                assetId: components["parameters"]["AssetId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 下载访问已受理 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadGrant"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    createBatchDownload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchDownloadRequest"];
+            };
+        };
+        responses: {
+            /** @description 批量下载请求已受理 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchDownloadJob"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    createExportJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequest"];
+            };
+        };
+        responses: {
+            /** @description 导出任务已受理 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportJob"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateProviderSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerName: components["parameters"]["ProviderName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProviderSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Provider 设置已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderSettingsResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    updatePrivacyPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePrivacyPolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description 隐私策略已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacyPolicy"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    getProviderRunDebug: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 调试保留信息 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderRunDebugRecord"];
                 };
             };
             default: components["responses"]["ErrorResponse"];

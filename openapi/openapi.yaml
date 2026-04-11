@@ -1,14 +1,19 @@
 openapi: 3.1.0
 info:
   title: PhotoNest API
-  version: 0.1.0
-  summary: 统一照片库的导入、发现与系统健康接口骨架
+  version: 0.2.0
+  summary: 统一照片库的认证、导入、发现与安全控制接口骨架
 servers:
   - url: http://localhost:8080
 tags:
   - name: System
+  - name: Auth
   - name: Import
   - name: Discovery
+  - name: Assets
+  - name: Backup
+  - name: Settings
+  - name: Debug
 paths:
   /api/v1/health:
     get:
@@ -22,11 +27,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: 使用 bootstrap 凭据创建认证会话
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功并返回会话与访问令牌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/session:
+    get:
+      tags: [Auth]
+      summary: 获取当前认证会话
+      operationId: getCurrentSession
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      responses:
+        '200':
+          description: 当前会话信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/recent:
+    post:
+      tags: [Auth]
+      summary: 刷新近期认证状态
+      operationId: refreshRecentAuthentication
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRecentAuthRequest'
+      responses:
+        '200':
+          description: 已刷新近期认证状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/import/sessions:
     post:
       tags: [Import]
       summary: 创建导入会话
       operationId: createImportSession
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
       requestBody:
         required: true
         content:
@@ -47,6 +115,9 @@ paths:
       tags: [Import]
       summary: 为上传对象签发预签名信息
       operationId: createUploadTicket
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
       parameters:
         - $ref: '#/components/parameters/SessionId'
       requestBody:
@@ -69,6 +140,9 @@ paths:
       tags: [Import]
       summary: 确认上传结果并闭合导入状态机
       operationId: confirmUpload
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
       parameters:
         - $ref: '#/components/parameters/SessionId'
       requestBody:
@@ -91,7 +165,11 @@ paths:
       tags: [Discovery]
       summary: 获取按时间线排列的资产摘要
       operationId: listTimelineAssets
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
       parameters:
+        - $ref: '#/components/parameters/LibraryId'
         - name: cursor
           in: query
           required: false
@@ -114,11 +192,237 @@ paths:
                 $ref: '#/components/schemas/TimelineResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/discovery/search:
+    get:
+      tags: [Discovery]
+      summary: 以统一授权边界执行搜索
+      operationId: searchAssets
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LibraryId'
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+      responses:
+        '200':
+          description: 搜索结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/assets/{assetId}:
+    get:
+      tags: [Assets]
+      summary: 获取单个资产详情
+      operationId: getAssetDetail
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+        - $ref: '#/components/parameters/LibraryId'
+      responses:
+        '200':
+          description: 资产详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetDetail'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/assets/{assetId}/download:
+    post:
+      tags: [Assets]
+      summary: 为单个资产申请受控下载访问
+      operationId: requestAssetDownload
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+        - $ref: '#/components/parameters/LibraryId'
+      responses:
+        '202':
+          description: 下载访问已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DownloadGrant'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/assets/batch-downloads:
+    post:
+      tags: [Assets]
+      summary: 创建批量下载请求
+      operationId: createBatchDownload
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchDownloadRequest'
+      responses:
+        '202':
+          description: 批量下载请求已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchDownloadJob'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/exports:
+    post:
+      tags: [Backup]
+      summary: 创建导出任务
+      operationId: createExportJob
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '202':
+          description: 导出任务已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportJob'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/settings/providers/{providerName}:
+    put:
+      tags: [Settings]
+      summary: 更新 Provider 设置
+      operationId: updateProviderSettings
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProviderName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderSettingsRequest'
+      responses:
+        '200':
+          description: Provider 设置已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSettingsResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/settings/privacy-policy:
+    put:
+      tags: [Settings]
+      summary: 更新隐私策略
+      operationId: updatePrivacyPolicy
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePrivacyPolicyRequest'
+      responses:
+        '200':
+          description: 隐私策略已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyPolicy'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/debug/provider-runs/{runId}:
+    get:
+      tags: [Debug]
+      summary: 查看 Provider 调试保留记录
+      operationId: getProviderRunDebug
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: 调试保留信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderRunDebugRecord'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: PhotonestSessionToken
+    sessionCookieAuth:
+      type: apiKey
+      in: cookie
+      name: photonest_session
   parameters:
     SessionId:
       name: sessionId
       in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AssetId:
+      name: assetId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProviderName:
+      name: providerName
+      in: path
+      required: true
+      schema:
+        type: string
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    LibraryId:
+      name: libraryId
+      in: query
       required: true
       schema:
         type: string
@@ -176,6 +480,73 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/HealthCheck'
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    RefreshRecentAuthRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+    AuthSession:
+      type: object
+      required:
+        [
+          id,
+          subjectId,
+          displayName,
+          roles,
+          libraryIds,
+          authMethod,
+          authenticatedAt,
+          recentAuthAt,
+          expiresAt,
+          csrfToken,
+        ]
+      properties:
+        id:
+          type: string
+        subjectId:
+          type: string
+        displayName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        libraryIds:
+          type: array
+          items:
+            type: string
+        authMethod:
+          type: string
+        authenticatedAt:
+          type: string
+          format: date-time
+        recentAuthAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        csrfToken:
+          type: string
+    AuthSessionResponse:
+      type: object
+      required: [session]
+      properties:
+        session:
+          $ref: '#/components/schemas/AuthSession'
+        accessToken:
+          type: string
+        csrfToken:
+          type: string
     CreateImportSessionRequest:
       type: object
       required: [libraryId, source]
@@ -268,7 +639,7 @@ components:
           type: string
     AssetAcceptedResponse:
       type: object
-      required: [assetId, processingStage, importSessionId]
+      required: [assetId, importSessionId, processingStage]
       properties:
         assetId:
           type: string
@@ -310,11 +681,183 @@ components:
           type: string
     TimelineResponse:
       type: object
-      required: [items, pageInfo]
+      required: [libraryId, items, pageInfo]
       properties:
+        libraryId:
+          type: string
+          format: uuid
         items:
           type: array
           items:
             $ref: '#/components/schemas/AssetSummary'
         pageInfo:
           $ref: '#/components/schemas/CursorPageInfo'
+    SearchResponse:
+      type: object
+      required: [libraryId, query, items, pageInfo]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        query:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetSummary'
+        pageInfo:
+          $ref: '#/components/schemas/CursorPageInfo'
+    AssetDetail:
+      type: object
+      required: [assetId, libraryId, mediaType, processingStage, backupStatus]
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        libraryId:
+          type: string
+          format: uuid
+        mediaType:
+          type: string
+        capturedAt:
+          type: string
+          format: date-time
+        processingStage:
+          type: string
+        backupStatus:
+          type: string
+        captionPreview:
+          type: string
+        thumbnailToken:
+          type: string
+    DownloadGrant:
+      type: object
+      required: [assetId, status]
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, ready]
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+    BatchDownloadRequest:
+      type: object
+      required: [libraryId, assetIds]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        assetIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    BatchDownloadJob:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, ready, failed]
+    ExportRequest:
+      type: object
+      required: [libraryId, scope]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        scope:
+          type: string
+          enum: [library, album, date-range]
+        albumId:
+          type: string
+          format: uuid
+        dateFrom:
+          type: string
+          format: date
+        dateTo:
+          type: string
+          format: date
+    ExportJob:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, ready, failed]
+        downloadUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+    UpdateProviderSettingsRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        rotateSecrets:
+          type: boolean
+        note:
+          type: string
+    ProviderSettingsResponse:
+      type: object
+      required: [providerName, status]
+      properties:
+        providerName:
+          type: string
+        status:
+          type: string
+          enum: [pending, updated]
+    UpdatePrivacyPolicyRequest:
+      type: object
+      required: [gpsMode, ocrMode, captionMode, embeddingMode]
+      properties:
+        gpsMode:
+          type: string
+          enum: [hidden, owner-only]
+        ocrMode:
+          type: string
+          enum: [hidden, preview, full]
+        captionMode:
+          type: string
+          enum: [hidden, preview, full]
+        embeddingMode:
+          type: string
+          enum: [disabled, private]
+    PrivacyPolicy:
+      type: object
+      required: [gpsMode, ocrMode, captionMode, embeddingMode]
+      properties:
+        gpsMode:
+          type: string
+        ocrMode:
+          type: string
+        captionMode:
+          type: string
+        embeddingMode:
+          type: string
+    ProviderRunDebugRecord:
+      type: object
+      required: [runId, status]
+      properties:
+        runId:
+          type: string
+          format: uuid
+        status:
+          type: string
+        debugPayload:
+          type: object
+          additionalProperties: true

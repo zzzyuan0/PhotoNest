@@ -17,7 +17,7 @@ const milestones = [
 const tasks = [
   'Nuxt Web、Go API 与 Worker 骨架',
   'OpenAPI 契约与 TypeScript 类型生成',
-  '数据库迁移、sqlc 查询组织与本地依赖',
+  '认证会话、CSRF 与审计边界',
 ];
 </script>
 
@@ -32,6 +32,7 @@ const tasks = [
       </p>
       <div class="actions">
         <NuxtLink class="primary" to="/import">查看导入链路</NuxtLink>
+        <NuxtLink class="secondary" to="/login">进入登录页</NuxtLink>
         <a class="secondary" href="/api/v1/health" target="_blank" rel="noreferrer">
           系统健康接口
         </a>
