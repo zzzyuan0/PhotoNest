@@ -13,6 +13,7 @@ import (
 	"github.com/photonest/photonest/internal/platform/config"
 	"github.com/photonest/photonest/internal/platform/health"
 	"github.com/photonest/photonest/internal/platform/httpserver"
+	"github.com/photonest/photonest/internal/provider/storage"
 )
 
 func main() {
@@ -23,6 +24,9 @@ func main() {
 	cfg, err := config.LoadFile(cfgPath)
 	if err != nil {
 		log.Fatalf("load config: %v", err)
+	}
+	if err := storage.ValidateConfiguredProviders(ctx, cfg); err != nil {
+		log.Fatalf("validate storage providers: %v", err)
 	}
 
 	server := &http.Server{

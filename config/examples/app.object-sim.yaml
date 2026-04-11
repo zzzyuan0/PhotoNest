@@ -1,0 +1,100 @@
+service:
+  name: photonest
+  environment: development
+
+server:
+  port: 8080
+
+database:
+  host: localhost
+  port: 5432
+  name: photonest
+  user: postgres
+  password:
+    env: PHOTONEST_DATABASE_PASSWORD
+  dsn:
+    env: PHOTONEST_DATABASE_DSN
+  sslMode: disable
+  maxOpenConns: 20
+  maxIdleConns: 5
+
+queue:
+  address: localhost:6379
+  password:
+    env: PHOTONEST_REDIS_PASSWORD
+    allowEmpty: true
+  db: 0
+  namespace: photonest
+  maxConsumers: 8
+
+storageProviders:
+  primary:
+    name: primary-minio
+    kind: s3-compatible
+    bucket: photonest-main
+    region: us-east-1
+    endpoint: http://localhost:9000
+    forcePathStyle: true
+    keyPrefix: libraries/main/
+    accessKeyId:
+      value: photonest
+    accessKeySecret:
+      value: photonest-dev-password
+    uploadPresignTTL: 15m
+    downloadPresignTTL: 5m
+    allowedOrigins:
+      - http://localhost:3000
+      - http://127.0.0.1:3000
+    privateRead: true
+    healthCheckURL: http://localhost:9000/minio/health/live
+    publicReadBlockMode: fail-fast
+  backup:
+    - name: backup-minio
+      kind: s3-compatible
+      bucket: photonest-backup
+      region: us-east-1
+      endpoint: http://localhost:9000
+      forcePathStyle: true
+      keyPrefix: backup/library-main/
+      accessKeyId:
+        value: photonest
+      accessKeySecret:
+        value: photonest-dev-password
+      uploadPresignTTL: 15m
+      downloadPresignTTL: 5m
+      allowedOrigins:
+        - http://localhost:3000
+      privateRead: true
+      healthCheckURL: http://localhost:9000/minio/health/live
+      publicReadBlockMode: fail-fast
+
+aiProviders:
+  - name: remote-openai
+    kind: openai-compatible
+    endpoint: https://api.openai.com/v1
+    model: gpt-4.1-mini
+    capabilities:
+      - caption
+      - ocr
+      - embedding
+    token:
+      env: PHOTONEST_AI_OPENAI_TOKEN
+    timeout: 20s
+    allowRemote: true
+    executionBoundary: remote-service
+    healthCheckURL: https://api.openai.com/v1/models
+
+telemetry:
+  logLevel: info
+  enableMetrics: true
+  enableTracing: true
+  enableStructured: true
+  redactionProfile: strict
+
+security:
+  csrfEnabled: true
+  recentAuthWindow: 15m
+  uploadCredentialTTL: 15m
+  downloadCredentialTTL: 5m
+  debugRetention: 24h
+  strictPrivateObjectCheck: true

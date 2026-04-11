@@ -1,4 +1,4 @@
-GO_IMAGE ?= golang:1.24
+GO_TOOL ?= ./scripts/dev/go-tool.sh
 
 .PHONY: install gen-client format format-check gofmt gofmt-check go-tidy up up-sim down health api worker
 
@@ -15,21 +15,19 @@ format-check:
 	pnpm format:check
 
 gofmt:
-	docker run --rm -v "$(CURDIR):/workspace" -w /workspace $(GO_IMAGE) \
-		sh -lc 'find cmd internal -name "*.go" -print0 | xargs -0 gofmt -w'
+	find cmd internal -name "*.go" -print0 | xargs -0 $(GO_TOOL) gofmt -w
 
 gofmt-check:
-	docker run --rm -v "$(CURDIR):/workspace" -w /workspace $(GO_IMAGE) \
-		sh -lc 'find cmd internal -name "*.go" -print0 | xargs -0 gofmt -d'
+	find cmd internal -name "*.go" -print0 | xargs -0 $(GO_TOOL) gofmt -d
 
 go-tidy:
-	docker run --rm -v "$(CURDIR):/workspace" -w /workspace $(GO_IMAGE) go mod tidy
+	$(GO_TOOL) go mod tidy
 
 up:
 	docker compose up -d postgres redis
 
 up-sim:
-	docker compose --profile object-sim up -d postgres redis minio
+	docker compose --profile object-sim up -d postgres redis minio minio-init
 
 down:
 	docker compose down -v

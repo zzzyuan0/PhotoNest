@@ -84,6 +84,12 @@ PhotoNest 是一个面向个人分散照片库的照片管理平台，目标是�
 - 再按 `tasks.md` 的顺序逐步实现
 - 代码、文档和后续变更说明默认使用中文
 
+## 本地运行提示
+
+- 默认对象存储示例配置在 [config/examples/app.yaml](./config/examples/app.yaml)，用于直接接入腾讯云 COS。
+- 如果需要无云账号联调，可先执行 `make up-sim`，再把 `PHOTONEST_CONFIG` 指向 `./config/examples/app.object-sim.yaml`，通过 MinIO 走 `s3-compatible` 适配路径。
+- Go 本地工具链与缓存默认收敛到 `home` 目录下的 `/home/root/.local/go`、`/home/root/.local/share/photonest/go`、`/home/root/.cache/photonest/go-build` 和 `/home/root/.config/go/env`，避免把编译数据写到仓库目录或系统级临时位置；开发脚本不再自动回退到 Docker Go 镜像。
+
 ## 下一步建议
 
 如果继续往前推进，这个仓库最适合优先补下面三项：
@@ -97,4 +103,3 @@ PhotoNest 是一个面向个人分散照片库的照片管理平台，目标是�
 - [Proposal](./openspec/changes/build-ai-photo-management-platform/proposal.md)
 - [Design](./openspec/changes/build-ai-photo-management-platform/design.md)
 - [Tasks](./openspec/changes/build-ai-photo-management-platform/tasks.md)
-

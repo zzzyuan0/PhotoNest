@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/photonest/photonest/internal/platform/config"
+	"github.com/photonest/photonest/internal/provider/storage"
 )
 
 type Probe func(ctx context.Context) error
@@ -40,10 +41,10 @@ func NewDefault(cfg config.AppConfig) Checker {
 		},
 	}
 
-	if cfg.StorageProviders.Primary.HealthCheckURL != "" {
+	for _, providerCfg := range append([]config.ObjectStorageProviderConfig{cfg.StorageProviders.Primary}, cfg.StorageProviders.Backup...) {
 		probes = append(probes, RegisteredProbe{
-			Name:  "storage-primary",
-			Probe: HTTPProbe(cfg.StorageProviders.Primary.HealthCheckURL, 2*time.Second),
+			Name:  fmt.Sprintf("storage-%s", providerCfg.Name),
+			Probe: StorageProbe(providerCfg, 5*time.Second),
 		})
 	}
 
@@ -114,5 +115,14 @@ func HTTPProbe(rawURL string, timeout time.Duration) Probe {
 		}
 
 		return nil
+	}
+}
+
+func StorageProbe(cfg config.ObjectStorageProviderConfig, timeout time.Duration) Probe {
+	return func(ctx context.Context) error {
+		probeCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+
+		return storage.ValidateProvider(probeCtx, cfg)
 	}
 }

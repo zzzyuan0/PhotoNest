@@ -63,6 +63,7 @@ type ObjectStorageProviderConfig struct {
 	Bucket              string        `yaml:"bucket"`
 	Region              string        `yaml:"region"`
 	Endpoint            string        `yaml:"endpoint"`
+	ForcePathStyle      bool          `yaml:"forcePathStyle"`
 	KeyPrefix           string        `yaml:"keyPrefix"`
 	AccessKeyID         SecretValue   `yaml:"accessKeyId"`
 	AccessKeySecret     SecretValue   `yaml:"accessKeySecret"`
@@ -160,6 +161,10 @@ func (c *AppConfig) applyDefaults() {
 	}
 	if c.Queue.MaxConsumers == 0 {
 		c.Queue.MaxConsumers = 8
+	}
+	c.StorageProviders.Primary.applyDefaults()
+	for i := range c.StorageProviders.Backup {
+		c.StorageProviders.Backup[i].applyDefaults()
 	}
 	if c.Telemetry.LogLevel == "" {
 		c.Telemetry.LogLevel = "info"
@@ -274,6 +279,10 @@ func (c ObjectStorageProviderConfig) ValidateLeastPrivilege() error {
 	switch {
 	case strings.TrimSpace(c.Bucket) == "":
 		return fmt.Errorf("bucket is required")
+	case strings.TrimSpace(c.Region) == "":
+		return fmt.Errorf("region is required")
+	case strings.TrimSpace(c.Endpoint) == "":
+		return fmt.Errorf("endpoint is required")
 	case strings.TrimSpace(c.KeyPrefix) == "":
 		return fmt.Errorf("keyPrefix must be configured to avoid root-level writes")
 	case !c.PrivateRead:
@@ -331,6 +340,7 @@ func (c ObjectStorageProviderConfig) RedactedSummary(ctx context.Context) (map[s
 		"bucket":              c.Bucket,
 		"region":              c.Region,
 		"endpoint":            c.Endpoint,
+		"forcePathStyle":      c.ForcePathStyle,
 		"keyPrefix":           c.KeyPrefix,
 		"uploadPresignTTL":    c.UploadPresignTTL.String(),
 		"downloadPresignTTL":  c.DownloadPresignTTL.String(),
@@ -396,4 +406,20 @@ func maskConnectionString(dsn string) string {
 	}
 
 	return maskedLabel("dsn")
+}
+
+func (c *ObjectStorageProviderConfig) applyDefaults() {
+	kind := strings.TrimSpace(c.Kind)
+	if kind == "s3-compatible" && strings.TrimSpace(c.Region) == "" {
+		c.Region = "us-east-1"
+	}
+	if kind == "tencent-cos" && strings.TrimSpace(c.Endpoint) == "" && strings.TrimSpace(c.Region) != "" {
+		c.Endpoint = fmt.Sprintf("https://cos.%s.myqcloud.com", c.Region)
+	}
+	if strings.TrimSpace(c.HealthCheckURL) == "" && strings.TrimSpace(c.Endpoint) != "" {
+		c.HealthCheckURL = c.Endpoint
+	}
+	if kind == "s3-compatible" {
+		c.ForcePathStyle = true
+	}
 }
