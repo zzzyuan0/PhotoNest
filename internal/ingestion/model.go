@@ -26,19 +26,26 @@ type ImportSession struct {
 	Source           Source
 	Status           SessionStatus
 	ExpectedItemCount int
+	Note             string
+	CreatedBy        string
 	ExpiresAt        time.Time
 	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type ImportItem struct {
 	ID             string
 	SessionID      string
+	AssetID        string
 	ObjectKey      string
 	OriginalName   string
 	ContentType    string
 	ContentLength  int64
 	ContentSHA256  string
+	ETag           string
 	Multipart      bool
 	ConfirmedAt    *time.Time
 	FailureReason  string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }

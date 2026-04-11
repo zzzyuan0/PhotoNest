@@ -1,36 +1,65 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/photonest/photonest/internal/ingestion"
 	"github.com/photonest/photonest/internal/platform/audit"
 	"github.com/photonest/photonest/internal/platform/auth"
 	"github.com/photonest/photonest/internal/platform/config"
 	"github.com/photonest/photonest/internal/platform/health"
+	"github.com/photonest/photonest/internal/provider/storage"
 )
 
 type Server struct {
-	cfg     config.AppConfig
-	checker health.Checker
-	auth    *auth.Manager
-	audit   *audit.Logger
-	mux     *http.ServeMux
+	cfg       config.AppConfig
+	checker   health.Checker
+	auth      *auth.Manager
+	audit     *audit.Logger
+	ingestion *ingestion.Service
+	mux       *http.ServeMux
 }
 
 func New(cfg config.AppConfig, checker health.Checker) (http.Handler, error) {
+	return NewWithDependencies(cfg, checker, Dependencies{})
+}
+
+type Dependencies struct {
+	Ingestion *ingestion.Service
+}
+
+func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Dependencies) (http.Handler, error) {
 	authManager, err := auth.NewManager(cfg.Security)
 	if err != nil {
 		return nil, fmt.Errorf("create auth manager: %w", err)
 	}
 
+	if deps.Ingestion == nil && strings.TrimSpace(cfg.StorageProviders.Primary.Kind) != "" {
+		provider, err := storage.NewProvider(context.Background(), cfg.StorageProviders.Primary)
+		if err != nil {
+			return nil, fmt.Errorf("create storage provider: %w", err)
+		}
+		deps.Ingestion, err = ingestion.NewService(ingestion.ServiceConfig{
+			Provider:            provider,
+			ProviderConfig:      cfg.StorageProviders.Primary,
+			UploadCredentialTTL: cfg.Security.UploadCredentialTTL,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create ingestion service: %w", err)
+		}
+	}
+
 	server := &Server{
-		cfg:     cfg,
-		checker: checker,
-		auth:    authManager,
-		audit:   audit.NewLogger(),
-		mux:     http.NewServeMux(),
+		cfg:       cfg,
+		checker:   checker,
+		auth:      authManager,
+		audit:     audit.NewLogger(),
+		ingestion: deps.Ingestion,
+		mux:       http.NewServeMux(),
 	}
 
 	server.routes()
@@ -57,19 +86,19 @@ func (s *Server) routes() {
 		Permission:     auth.PermissionLibraryWrite,
 		RequireCSRF:    true,
 		RequireLibrary: true,
-	}, s.notImplemented("createImportSession")))
+	}, s.handleCreateImportSession))
 	s.mux.HandleFunc("POST /api/v1/import/sessions/{sessionId}/uploads", s.secure(routeSpec{
 		Operation:      "createUploadTicket",
 		Permission:     auth.PermissionLibraryWrite,
 		RequireCSRF:    true,
 		RequireLibrary: true,
-	}, s.notImplemented("createUploadTicket")))
+	}, s.handleCreateUploadTicket))
 	s.mux.HandleFunc("POST /api/v1/import/sessions/{sessionId}/confirm", s.secure(routeSpec{
 		Operation:      "confirmUpload",
 		Permission:     auth.PermissionLibraryWrite,
 		RequireCSRF:    true,
 		RequireLibrary: true,
-	}, s.notImplemented("confirmUpload")))
+	}, s.handleConfirmUpload))
 
 	s.mux.HandleFunc("GET /api/v1/discovery/timeline", s.secure(routeSpec{
 		Operation:      "listTimelineAssets",

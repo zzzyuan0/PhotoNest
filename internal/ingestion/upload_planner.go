@@ -63,6 +63,14 @@ func NewUploadPlanner(provider storage.Provider, cfg config.ObjectStorageProvide
 }
 
 func (p UploadPlanner) Plan(ctx context.Context, session ImportSession, intent UploadIntent) (UploadPlan, error) {
+	return p.plan(ctx, session, intent, "")
+}
+
+func (p UploadPlanner) Reissue(ctx context.Context, session ImportSession, objectKey string, intent UploadIntent) (UploadPlan, error) {
+	return p.plan(ctx, session, intent, objectKey)
+}
+
+func (p UploadPlanner) plan(ctx context.Context, session ImportSession, intent UploadIntent, objectKey string) (UploadPlan, error) {
 	if strings.TrimSpace(session.ID) == "" {
 		return UploadPlan{}, fmt.Errorf("session id is required")
 	}
@@ -76,9 +84,12 @@ func (p UploadPlanner) Plan(ctx context.Context, session ImportSession, intent U
 		return UploadPlan{}, fmt.Errorf("content length must be positive")
 	}
 
-	objectKey, err := p.allocateObjectKey(session.LibraryID, session.ID)
-	if err != nil {
-		return UploadPlan{}, err
+	if strings.TrimSpace(objectKey) == "" {
+		var err error
+		objectKey, err = p.allocateObjectKey(session.LibraryID, session.ID)
+		if err != nil {
+			return UploadPlan{}, err
+		}
 	}
 
 	headers := map[string]string{

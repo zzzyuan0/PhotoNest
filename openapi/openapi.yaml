@@ -582,8 +582,11 @@ components:
           format: date-time
     CreateUploadTicketRequest:
       type: object
-      required: [fileName, contentType, contentLength]
+      required: [libraryId, fileName, contentType, contentLength]
       properties:
+        libraryId:
+          type: string
+          format: uuid
         fileName:
           type: string
         contentType:
@@ -598,7 +601,7 @@ components:
           default: false
     UploadTicket:
       type: object
-      required: [sessionId, objectKey, method, url, expiresAt]
+      required: [sessionId, objectKey, expiresAt]
       properties:
         sessionId:
           type: string
@@ -624,10 +627,42 @@ components:
           format: date-time
         checksumAlgorithm:
           type: string
+        multipart:
+          $ref: '#/components/schemas/MultipartUploadTicket'
+    MultipartUploadTicket:
+      type: object
+      required: [uploadId, expiresAt, parts]
+      properties:
+        uploadId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/MultipartUploadPart'
+    MultipartUploadPart:
+      type: object
+      required: [partNumber, uploadUrl]
+      properties:
+        partNumber:
+          type: integer
+          minimum: 1
+        uploadUrl:
+          type: string
+          format: uri
+        headers:
+          type: object
+          additionalProperties:
+            type: string
     ConfirmUploadRequest:
       type: object
-      required: [objectKey, contentLength]
+      required: [libraryId, objectKey, contentLength]
       properties:
+        libraryId:
+          type: string
+          format: uuid
         objectKey:
           type: string
         contentLength:
@@ -636,6 +671,21 @@ components:
         etag:
           type: string
         contentSha256:
+          type: string
+        uploadId:
+          type: string
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompletedUploadPart'
+    CompletedUploadPart:
+      type: object
+      required: [partNumber, etag]
+      properties:
+        partNumber:
+          type: integer
+          minimum: 1
+        etag:
           type: string
     AssetAcceptedResponse:
       type: object

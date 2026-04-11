@@ -351,6 +351,8 @@ export interface components {
             expiresAt: string;
         };
         CreateUploadTicketRequest: {
+            /** Format: uuid */
+            libraryId: string;
             fileName: string;
             contentType: string;
             contentLength: number;
@@ -363,9 +365,9 @@ export interface components {
             sessionId: string;
             objectKey: string;
             /** @enum {string} */
-            method: "PUT" | "POST";
+            method?: "PUT" | "POST";
             /** Format: uri */
-            url: string;
+            url?: string;
             headers?: {
                 [key: string]: string;
             };
@@ -375,12 +377,35 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
             checksumAlgorithm?: string;
+            multipart?: components["schemas"]["MultipartUploadTicket"];
+        };
+        MultipartUploadTicket: {
+            uploadId: string;
+            /** Format: date-time */
+            expiresAt: string;
+            parts: components["schemas"]["MultipartUploadPart"][];
+        };
+        MultipartUploadPart: {
+            partNumber: number;
+            /** Format: uri */
+            uploadUrl: string;
+            headers?: {
+                [key: string]: string;
+            };
         };
         ConfirmUploadRequest: {
+            /** Format: uuid */
+            libraryId: string;
             objectKey: string;
             contentLength: number;
             etag?: string;
             contentSha256?: string;
+            uploadId?: string;
+            parts?: components["schemas"]["CompletedUploadPart"][];
+        };
+        CompletedUploadPart: {
+            partNumber: number;
+            etag: string;
         };
         AssetAcceptedResponse: {
             /** Format: uuid */

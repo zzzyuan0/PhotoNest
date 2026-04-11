@@ -30,10 +30,15 @@ type Asset struct {
 	OriginalFilename      string
 	ContentSHA256         string
 	PerceptualHash        string
+	Width                 int
+	Height                int
+	DurationMS            int
 	ImportedAt            time.Time
 	CapturedAt            *time.Time
 	ProcessingStage       ProcessingStage
 	BackupStatus          string
+	IsDuplicateExact      bool
+	DuplicateCandidateOf  string
 	RecognitionStatusNote string
 }
 
