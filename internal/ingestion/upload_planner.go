@@ -44,12 +44,12 @@ type UploadPlan struct {
 }
 
 type UploadValidationInput struct {
-	SessionID      string
-	LibraryID      string
-	ObjectKey      string
-	ContentLength  int64
-	ETag           string
-	ContentSHA256  string
+	SessionID     string
+	LibraryID     string
+	ObjectKey     string
+	ContentLength int64
+	ETag          string
+	ContentSHA256 string
 }
 
 func NewUploadPlanner(provider storage.Provider, cfg config.ObjectStorageProviderConfig) UploadPlanner {
@@ -59,6 +59,15 @@ func NewUploadPlanner(provider storage.Provider, cfg config.ObjectStorageProvide
 		bucket:       cfg.Bucket,
 		keyPrefix:    cfg.KeyPrefix,
 		uploadTTL:    cfg.UploadPresignTTL,
+	}
+}
+
+func (p UploadPlanner) ProviderConfig() config.ObjectStorageProviderConfig {
+	return config.ObjectStorageProviderConfig{
+		Name:             p.providerName,
+		Bucket:           p.bucket,
+		KeyPrefix:        p.keyPrefix,
+		UploadPresignTTL: p.uploadTTL,
 	}
 }
 
@@ -111,9 +120,9 @@ func (p UploadPlanner) plan(ctx context.Context, session ImportSession, intent U
 			Ref:         ref,
 			ContentType: intent.ContentType,
 			Metadata: map[string]string{
-				"photonest-session-id":    session.ID,
-				"photonest-library-id":    session.LibraryID,
-				"photonest-provider":      p.providerName,
+				"photonest-session-id":     session.ID,
+				"photonest-library-id":     session.LibraryID,
+				"photonest-provider":       p.providerName,
 				"photonest-content-sha256": strings.TrimSpace(intent.ContentSHA256),
 			},
 			PartCount: p.estimatePartCount(intent.ContentLength),

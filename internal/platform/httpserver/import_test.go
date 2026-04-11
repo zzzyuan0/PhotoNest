@@ -12,10 +12,14 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/photonest/photonest/internal/discovery"
+	"github.com/photonest/photonest/internal/enrichment"
 	"github.com/photonest/photonest/internal/ingestion"
 	"github.com/photonest/photonest/internal/platform/config"
 	"github.com/photonest/photonest/internal/platform/health"
+	providerai "github.com/photonest/photonest/internal/provider/ai"
 	"github.com/photonest/photonest/internal/provider/storage"
 )
 
@@ -37,7 +41,9 @@ func TestImportEndpointsCloseTheUploadLoop(t *testing.T) {
 	}
 
 	handler, err := NewWithDependencies(newTestConfig(), health.Checker{}, Dependencies{
-		Ingestion: service,
+		Ingestion:  service,
+		Discovery:  mustDiscovery(t, store, provider),
+		Enrichment: mustEnrichment(t, store, provider),
 	})
 	if err != nil {
 		t.Fatalf("new server: %v", err)
@@ -138,6 +144,84 @@ func TestImportEndpointsCloseTheUploadLoop(t *testing.T) {
 	if accepted["processingStage"] != "derivatives-ready" {
 		t.Fatalf("expected derivatives-ready stage, got %v", accepted["processingStage"])
 	}
+
+	assetID := accepted["assetId"].(string)
+
+	timelineRecorder := httptest.NewRecorder()
+	timelineRequest := httptest.NewRequest(http.MethodGet, "/api/v1/discovery/timeline?libraryId=11111111-1111-1111-1111-111111111111", nil)
+	for _, cookie := range cookies {
+		timelineRequest.AddCookie(cookie)
+	}
+	handler.ServeHTTP(timelineRecorder, timelineRequest)
+	if timelineRecorder.Code != http.StatusOK {
+		t.Fatalf("timeline expected 200, got %d: %s", timelineRecorder.Code, timelineRecorder.Body.String())
+	}
+
+	detailRecorder := httptest.NewRecorder()
+	detailRequest := httptest.NewRequest(http.MethodGet, "/api/v1/assets/"+assetID+"?libraryId=11111111-1111-1111-1111-111111111111", nil)
+	for _, cookie := range cookies {
+		detailRequest.AddCookie(cookie)
+	}
+	handler.ServeHTTP(detailRecorder, detailRequest)
+	if detailRecorder.Code != http.StatusOK {
+		t.Fatalf("asset detail expected 200, got %d: %s", detailRecorder.Code, detailRecorder.Body.String())
+	}
+
+	downloadRecorder := httptest.NewRecorder()
+	downloadRequest := httptest.NewRequest(http.MethodPost, "/api/v1/assets/"+assetID+"/download?libraryId=11111111-1111-1111-1111-111111111111", strings.NewReader(`{}`))
+	downloadRequest.Header.Set("Content-Type", "application/json")
+	downloadRequest.Header.Set("X-CSRF-Token", csrfToken)
+	for _, cookie := range cookies {
+		downloadRequest.AddCookie(cookie)
+	}
+	handler.ServeHTTP(downloadRecorder, downloadRequest)
+	if downloadRecorder.Code != http.StatusOK {
+		t.Fatalf("download grant expected 200, got %d: %s", downloadRecorder.Code, downloadRecorder.Body.String())
+	}
+
+	var grant map[string]any
+	if err := json.Unmarshal(downloadRecorder.Body.Bytes(), &grant); err != nil {
+		t.Fatalf("decode download grant: %v", err)
+	}
+	if grant["status"] != "ready" {
+		t.Fatalf("expected ready download grant, got %v", grant["status"])
+	}
+	if url, _ := grant["url"].(string); !strings.Contains(url, "memory://") {
+		t.Fatalf("expected short-lived memory url, got %v", grant["url"])
+	}
+}
+
+func mustDiscovery(t *testing.T, store *ingestion.MemoryStore, provider storage.Provider) *discovery.Service {
+	t.Helper()
+
+	service, err := discovery.NewService(discovery.ServiceConfig{
+		Repository:  store,
+		Storage:     provider,
+		DownloadTTL: 5 * time.Minute,
+		TokenKey:    "test-token",
+	})
+	if err != nil {
+		t.Fatalf("new discovery service: %v", err)
+	}
+	return service
+}
+
+func mustEnrichment(t *testing.T, store *ingestion.MemoryStore, provider storage.Provider) *enrichment.Service {
+	t.Helper()
+
+	service, err := enrichment.NewService(enrichment.ServiceConfig{
+		Repository:          store,
+		Storage:             provider,
+		AIProviders:         []providerai.Provider{providerai.NewDeterministicProvider("test-ai", providerai.BoundaryLocalSidecar, nil, "test-model")},
+		Queue:               enrichment.NewMemoryQueue(),
+		DownloadTTL:         5 * time.Minute,
+		DebugRetention:      24 * time.Hour,
+		RetainProviderDebug: true,
+	})
+	if err != nil {
+		t.Fatalf("new enrichment service: %v", err)
+	}
+	return service
 }
 
 func sampleUploadPNG(t *testing.T) []byte {

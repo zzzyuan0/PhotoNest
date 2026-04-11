@@ -38,15 +38,15 @@ type createUploadTicketRequest struct {
 }
 
 type uploadTicketResponse struct {
-	SessionID         string                    `json:"sessionId"`
-	ObjectKey         string                    `json:"objectKey"`
-	Method            string                    `json:"method,omitempty"`
-	URL               string                    `json:"url,omitempty"`
-	Headers           map[string]string         `json:"headers,omitempty"`
-	FormFields        map[string]string         `json:"formFields,omitempty"`
-	ExpiresAt         string                    `json:"expiresAt"`
-	ChecksumAlgorithm string                    `json:"checksumAlgorithm,omitempty"`
-	Multipart         *multipartUploadResponse  `json:"multipart,omitempty"`
+	SessionID         string                   `json:"sessionId"`
+	ObjectKey         string                   `json:"objectKey"`
+	Method            string                   `json:"method,omitempty"`
+	URL               string                   `json:"url,omitempty"`
+	Headers           map[string]string        `json:"headers,omitempty"`
+	FormFields        map[string]string        `json:"formFields,omitempty"`
+	ExpiresAt         string                   `json:"expiresAt"`
+	ChecksumAlgorithm string                   `json:"checksumAlgorithm,omitempty"`
+	Multipart         *multipartUploadResponse `json:"multipart,omitempty"`
 }
 
 type multipartUploadResponse struct {
@@ -189,6 +189,9 @@ func (s *Server) handleConfirmUpload(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.writeImportError(w, err)
 		return
+	}
+	if s.enrich != nil {
+		_ = s.enrich.QueueAsset(r.Context(), result.Asset.ID)
 	}
 
 	writeJSON(w, http.StatusAccepted, assetAcceptedResponse{

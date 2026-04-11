@@ -5,11 +5,14 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/photonest/photonest/internal/asset"
+	"github.com/photonest/photonest/internal/library"
 )
 
 var (
@@ -34,6 +37,12 @@ type Repository interface {
 	ListAssetsByLibrary(ctx context.Context, libraryID string) ([]asset.Asset, error)
 	CreateObjectReference(ctx context.Context, ref asset.ObjectReference) (asset.ObjectReference, error)
 	ListObjectReferencesByAsset(ctx context.Context, assetID string) ([]asset.ObjectReference, error)
+	SaveRecognitionRun(ctx context.Context, run asset.RecognitionRun) (asset.RecognitionRun, error)
+	GetRecognitionRun(ctx context.Context, assetID string, stage asset.RecognitionStage) (asset.RecognitionRun, bool, error)
+	GetRecognitionRunByID(ctx context.Context, runID string) (asset.RecognitionRun, bool, error)
+	ListRecognitionRunsByAsset(ctx context.Context, assetID string) ([]asset.RecognitionRun, error)
+	SaveLibraryPolicy(ctx context.Context, libraryID string, policy library.Policy) error
+	GetLibraryPolicy(ctx context.Context, libraryID string) (library.Policy, error)
 }
 
 type ReusableItemLookup struct {
@@ -54,6 +63,9 @@ type MemoryStore struct {
 	contentSHAIndex  map[string]string
 	objectReferences map[string]asset.ObjectReference
 	assetObjectRefs  map[string][]string
+	recognitionRuns  map[string]asset.RecognitionRun
+	assetRuns        map[string][]string
+	libraryPolicies  map[string]library.Policy
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -66,6 +78,9 @@ func NewMemoryStore() *MemoryStore {
 		contentSHAIndex:  map[string]string{},
 		objectReferences: map[string]asset.ObjectReference{},
 		assetObjectRefs:  map[string][]string{},
+		recognitionRuns:  map[string]asset.RecognitionRun{},
+		assetRuns:        map[string][]string{},
+		libraryPolicies:  map[string]library.Policy{},
 	}
 }
 
@@ -304,8 +319,90 @@ func (s *MemoryStore) ListObjectReferencesByAsset(_ context.Context, assetID str
 	return records, nil
 }
 
+func (s *MemoryStore) SaveRecognitionRun(_ context.Context, run asset.RecognitionRun) (asset.RecognitionRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	record := cloneRecognitionRun(run)
+	if strings.TrimSpace(record.ID) == "" {
+		record.ID = newOpaqueID()
+	}
+	key := recognitionRunKey(record.AssetID, record.Stage)
+	if existing, ok := s.recognitionRuns[key]; ok {
+		record.ID = existing.ID
+	}
+	s.recognitionRuns[key] = record
+	if !slices.Contains(s.assetRuns[record.AssetID], key) {
+		s.assetRuns[record.AssetID] = append(s.assetRuns[record.AssetID], key)
+	}
+
+	return cloneRecognitionRun(record), nil
+}
+
+func (s *MemoryStore) GetRecognitionRun(_ context.Context, assetID string, stage asset.RecognitionStage) (asset.RecognitionRun, bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	record, ok := s.recognitionRuns[recognitionRunKey(assetID, stage)]
+	if !ok {
+		return asset.RecognitionRun{}, false, nil
+	}
+	return cloneRecognitionRun(record), true, nil
+}
+
+func (s *MemoryStore) GetRecognitionRunByID(_ context.Context, runID string) (asset.RecognitionRun, bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, record := range s.recognitionRuns {
+		if strings.TrimSpace(record.ID) == strings.TrimSpace(runID) {
+			return cloneRecognitionRun(record), true, nil
+		}
+	}
+	return asset.RecognitionRun{}, false, nil
+}
+
+func (s *MemoryStore) ListRecognitionRunsByAsset(_ context.Context, assetID string) ([]asset.RecognitionRun, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	keys := s.assetRuns[strings.TrimSpace(assetID)]
+	records := make([]asset.RecognitionRun, 0, len(keys))
+	for _, key := range keys {
+		record, ok := s.recognitionRuns[key]
+		if !ok {
+			continue
+		}
+		records = append(records, cloneRecognitionRun(record))
+	}
+	return records, nil
+}
+
+func (s *MemoryStore) SaveLibraryPolicy(_ context.Context, libraryID string, policy library.Policy) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.libraryPolicies[strings.TrimSpace(libraryID)] = policy.WithDefaults()
+	return nil
+}
+
+func (s *MemoryStore) GetLibraryPolicy(_ context.Context, libraryID string) (library.Policy, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	policy, ok := s.libraryPolicies[strings.TrimSpace(libraryID)]
+	if !ok {
+		return library.DefaultPolicy(), nil
+	}
+	return policy.WithDefaults(), nil
+}
+
 func contentSHAKey(libraryID string, contentSHA string) string {
 	return strings.TrimSpace(libraryID) + ":" + strings.TrimSpace(contentSHA)
+}
+
+func recognitionRunKey(assetID string, stage asset.RecognitionStage) string {
+	return strings.TrimSpace(assetID) + ":" + strings.TrimSpace(string(stage))
 }
 
 func newOpaqueID() string {
@@ -335,12 +432,33 @@ func cloneItem(item ImportItem) ImportItem {
 }
 
 func cloneAsset(record asset.Asset) asset.Asset {
+	if record.CapturedAt != nil {
+		capturedAt := *record.CapturedAt
+		record.CapturedAt = &capturedAt
+	}
+	record.GPSLatitude = cloneFloat64Pointer(record.GPSLatitude)
+	record.GPSLongitude = cloneFloat64Pointer(record.GPSLongitude)
+	record.Tags = slices.Clone(record.Tags)
+	record.Embedding = slices.Clone(record.Embedding)
 	return record
 }
 
 func cloneObjectReference(ref asset.ObjectReference) asset.ObjectReference {
 	ref.Metadata = cloneStringMap(ref.Metadata)
 	return ref
+}
+
+func cloneRecognitionRun(run asset.RecognitionRun) asset.RecognitionRun {
+	if run.FinishedAt != nil {
+		finishedAt := *run.FinishedAt
+		run.FinishedAt = &finishedAt
+	}
+	if run.DebugExpiresAt != nil {
+		debugExpiresAt := *run.DebugExpiresAt
+		run.DebugExpiresAt = &debugExpiresAt
+	}
+	run.DebugPayload = maps.Clone(run.DebugPayload)
+	return run
 }
 
 func cloneStringMap(input map[string]string) map[string]string {
@@ -353,4 +471,13 @@ func cloneStringMap(input map[string]string) map[string]string {
 		output[key] = value
 	}
 	return output
+}
+
+func cloneFloat64Pointer(input *float64) *float64 {
+	if input == nil {
+		return nil
+	}
+
+	value := *input
+	return &value
 }

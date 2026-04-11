@@ -8,9 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/photonest/photonest/internal/discovery"
+	"github.com/photonest/photonest/internal/enrichment"
+	"github.com/photonest/photonest/internal/ingestion"
 	"github.com/photonest/photonest/internal/platform/auth"
 	"github.com/photonest/photonest/internal/platform/config"
 	"github.com/photonest/photonest/internal/platform/health"
+	providerai "github.com/photonest/photonest/internal/provider/ai"
+	"github.com/photonest/photonest/internal/provider/storage"
 )
 
 func TestTimelineRequiresAuthentication(t *testing.T) {
@@ -133,7 +138,48 @@ func TestExportRequiresRecentAuthentication(t *testing.T) {
 func newTestHandler(t *testing.T) http.Handler {
 	t.Helper()
 
-	handler, err := New(newTestConfig(), health.Checker{})
+	store := ingestion.NewMemoryStore()
+	provider := storage.NewMemoryProvider("primary-memory", "photonest-main", "libraries/main")
+	ingestionService, err := ingestion.NewService(ingestion.ServiceConfig{
+		Repository: store,
+		Provider:   provider,
+		ProviderConfig: config.ObjectStorageProviderConfig{
+			Name:             "primary-memory",
+			Bucket:           "photonest-main",
+			KeyPrefix:        "libraries/main",
+			UploadPresignTTL: storage.MaxUploadTTL,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new ingestion service returned error: %v", err)
+	}
+	discoveryService, err := discovery.NewService(discovery.ServiceConfig{
+		Repository:  store,
+		Storage:     provider,
+		DownloadTTL: 5 * time.Minute,
+		TokenKey:    "test-token",
+	})
+	if err != nil {
+		t.Fatalf("new discovery service returned error: %v", err)
+	}
+	enrichmentService, err := enrichment.NewService(enrichment.ServiceConfig{
+		Repository:          store,
+		Storage:             provider,
+		AIProviders:         []providerai.Provider{providerai.NewDeterministicProvider("test-ai", providerai.BoundaryLocalSidecar, nil, "test-model")},
+		Queue:               enrichment.NewMemoryQueue(),
+		DownloadTTL:         5 * time.Minute,
+		DebugRetention:      24 * time.Hour,
+		RetainProviderDebug: true,
+	})
+	if err != nil {
+		t.Fatalf("new enrichment service returned error: %v", err)
+	}
+
+	handler, err := NewWithDependencies(newTestConfig(), health.Checker{}, Dependencies{
+		Ingestion:  ingestionService,
+		Discovery:  discoveryService,
+		Enrichment: enrichmentService,
+	})
 	if err != nil {
 		t.Fatalf("new server returned error: %v", err)
 	}

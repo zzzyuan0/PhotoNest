@@ -14,6 +14,28 @@ const (
 	StagePartialFailure   ProcessingStage = "partial_failure"
 )
 
+type RecognitionStage string
+
+const (
+	RecognitionStageDerivatives RecognitionStage = "derivatives"
+	RecognitionStageMetadata    RecognitionStage = "metadata"
+	RecognitionStageCaption     RecognitionStage = "caption"
+	RecognitionStageOCR         RecognitionStage = "ocr"
+	RecognitionStageEmbedding   RecognitionStage = "embedding"
+	RecognitionStageIndexing    RecognitionStage = "indexing"
+	RecognitionStageBackup      RecognitionStage = "backup"
+)
+
+type RecognitionStatus string
+
+const (
+	RecognitionStatusPending   RecognitionStatus = "pending"
+	RecognitionStatusRunning   RecognitionStatus = "running"
+	RecognitionStatusSucceeded RecognitionStatus = "succeeded"
+	RecognitionStatusFailed    RecognitionStatus = "failed"
+	RecognitionStatusSkipped   RecognitionStatus = "skipped"
+)
+
 type ObjectPurpose string
 
 const (
@@ -22,6 +44,21 @@ const (
 	ObjectPurposePreview   ObjectPurpose = "preview"
 	ObjectPurposeBackup    ObjectPurpose = "backup"
 )
+
+type RecognitionRun struct {
+	ID             string
+	AssetID        string
+	Stage          RecognitionStage
+	ProviderName   string
+	Status         RecognitionStatus
+	PolicyReason   string
+	Attempts       int
+	StartedAt      time.Time
+	FinishedAt     *time.Time
+	DebugExpiresAt *time.Time
+	DebugPayload   map[string]any
+	LastError      string
+}
 
 type Asset struct {
 	ID                    string
@@ -35,6 +72,16 @@ type Asset struct {
 	DurationMS            int
 	ImportedAt            time.Time
 	CapturedAt            *time.Time
+	TimelineAt            time.Time
+	DeviceMake            string
+	DeviceModel           string
+	GPSLatitude           *float64
+	GPSLongitude          *float64
+	LocationLabel         string
+	CaptionText           string
+	OCRText               string
+	Tags                  []string
+	Embedding             []float32
 	ProcessingStage       ProcessingStage
 	BackupStatus          string
 	IsDuplicateExact      bool
@@ -43,17 +90,17 @@ type Asset struct {
 }
 
 type ObjectReference struct {
-	ID             string
-	AssetID        string
-	ProviderName   string
-	Bucket         string
-	ObjectKey      string
-	ObjectVersion  string
-	ETag           string
-	Purpose        ObjectPurpose
-	ContentLength  int64
-	ContentSHA256  string
-	Metadata       map[string]string
-	CreatedAt      time.Time
-	Immutable      bool
+	ID            string
+	AssetID       string
+	ProviderName  string
+	Bucket        string
+	ObjectKey     string
+	ObjectVersion string
+	ETag          string
+	Purpose       ObjectPurpose
+	ContentLength int64
+	ContentSHA256 string
+	Metadata      map[string]string
+	CreatedAt     time.Time
+	Immutable     bool
 }

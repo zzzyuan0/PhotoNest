@@ -7,6 +7,8 @@ type Payload struct {
 	AssetID         string         `json:"assetId,omitempty"`
 	ImportSessionID string         `json:"importSessionId,omitempty"`
 	Operation       string         `json:"operation"`
+	Stage           string         `json:"stage,omitempty"`
+	RetryCount      int            `json:"retryCount,omitempty"`
 	Debug           map[string]any `json:"debug,omitempty"`
 }
 

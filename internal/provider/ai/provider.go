@@ -34,6 +34,7 @@ type CaptionRequest struct {
 	AssetID   string
 	ObjectURL string
 	Locale    string
+	FileName  string
 }
 
 type CaptionResult struct {
@@ -46,6 +47,7 @@ type OCRRequest struct {
 	AssetID   string
 	ObjectURL string
 	Locale    string
+	FileName  string
 }
 
 type OCRResult struct {
@@ -62,6 +64,7 @@ type EmbeddingRequest struct {
 	AssetID   string
 	ObjectURL string
 	Model     string
+	FileName  string
 }
 
 type EmbeddingResult struct {

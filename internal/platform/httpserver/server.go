@@ -7,11 +7,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/photonest/photonest/internal/discovery"
+	"github.com/photonest/photonest/internal/enrichment"
 	"github.com/photonest/photonest/internal/ingestion"
 	"github.com/photonest/photonest/internal/platform/audit"
 	"github.com/photonest/photonest/internal/platform/auth"
 	"github.com/photonest/photonest/internal/platform/config"
 	"github.com/photonest/photonest/internal/platform/health"
+	providerai "github.com/photonest/photonest/internal/provider/ai"
 	"github.com/photonest/photonest/internal/provider/storage"
 )
 
@@ -21,6 +24,8 @@ type Server struct {
 	auth      *auth.Manager
 	audit     *audit.Logger
 	ingestion *ingestion.Service
+	discovery *discovery.Service
+	enrich    *enrichment.Service
 	mux       *http.ServeMux
 }
 
@@ -29,7 +34,9 @@ func New(cfg config.AppConfig, checker health.Checker) (http.Handler, error) {
 }
 
 type Dependencies struct {
-	Ingestion *ingestion.Service
+	Ingestion  *ingestion.Service
+	Discovery  *discovery.Service
+	Enrichment *enrichment.Service
 }
 
 func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Dependencies) (http.Handler, error) {
@@ -52,6 +59,31 @@ func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Depe
 			return nil, fmt.Errorf("create ingestion service: %w", err)
 		}
 	}
+	if deps.Discovery == nil && deps.Ingestion != nil {
+		deps.Discovery, err = discovery.NewService(discovery.ServiceConfig{
+			Repository:  deps.Ingestion.Repository(),
+			Storage:     deps.Ingestion.Provider(),
+			DownloadTTL: cfg.Security.DownloadCredentialTTL,
+			TokenKey:    cfg.Security.Session.CookieName,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create discovery service: %w", err)
+		}
+	}
+	if deps.Enrichment == nil && deps.Ingestion != nil {
+		deps.Enrichment, err = enrichment.NewService(enrichment.ServiceConfig{
+			Repository:          deps.Ingestion.Repository(),
+			Storage:             deps.Ingestion.Provider(),
+			AIProviders:         buildAIProviders(cfg.AIProviders),
+			Queue:               enrichment.NewMemoryQueue(),
+			DownloadTTL:         cfg.Security.DownloadCredentialTTL,
+			DebugRetention:      cfg.Security.DebugRetention,
+			RetainProviderDebug: true,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create enrichment service: %w", err)
+		}
+	}
 
 	server := &Server{
 		cfg:       cfg,
@@ -59,6 +91,8 @@ func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Depe
 		auth:      authManager,
 		audit:     audit.NewLogger(),
 		ingestion: deps.Ingestion,
+		discovery: deps.Discovery,
+		enrich:    deps.Enrichment,
 		mux:       http.NewServeMux(),
 	}
 
@@ -75,10 +109,10 @@ func (s *Server) routes() {
 		Operation: "getCurrentSession",
 	}, s.handleSession))
 	s.mux.HandleFunc("POST /api/v1/auth/recent", s.secure(routeSpec{
-		Operation:     "refreshRecentAuthentication",
-		RequireCSRF:   true,
-		AuditAction:   "auth.reauthenticate",
-		TargetType:    "session",
+		Operation:   "refreshRecentAuthentication",
+		RequireCSRF: true,
+		AuditAction: "auth.reauthenticate",
+		TargetType:  "session",
 	}, s.handleRefreshRecentAuth))
 
 	s.mux.HandleFunc("POST /api/v1/import/sessions", s.secure(routeSpec{
@@ -114,13 +148,13 @@ func (s *Server) routes() {
 		Operation:      "getAssetDetail",
 		Permission:     auth.PermissionLibraryRead,
 		RequireLibrary: true,
-	}, s.notImplemented("getAssetDetail")))
+	}, s.handleAssetDetail))
 	s.mux.HandleFunc("POST /api/v1/assets/{assetId}/download", s.secure(routeSpec{
 		Operation:      "requestAssetDownload",
 		Permission:     auth.PermissionAssetDownload,
 		RequireCSRF:    true,
 		RequireLibrary: true,
-	}, s.notImplemented("requestAssetDownload")))
+	}, s.handleAssetDownload))
 	s.mux.HandleFunc("POST /api/v1/assets/batch-downloads", s.secure(routeSpec{
 		Operation:      "createBatchDownload",
 		Permission:     auth.PermissionBatchDownload,
@@ -148,18 +182,19 @@ func (s *Server) routes() {
 		TargetType:    "provider",
 	}, s.notImplemented("updateProviderSettings")))
 	s.mux.HandleFunc("PUT /api/v1/settings/privacy-policy", s.secure(routeSpec{
-		Operation:   "updatePrivacyPolicy",
-		Permission:  auth.PermissionManagePrivacy,
-		RequireCSRF: true,
-		AuditAction: "privacy.policy.update",
-		TargetType:  "privacy-policy",
-	}, s.notImplemented("updatePrivacyPolicy")))
+		Operation:      "updatePrivacyPolicy",
+		Permission:     auth.PermissionManagePrivacy,
+		RequireCSRF:    true,
+		RequireLibrary: true,
+		AuditAction:    "privacy.policy.update",
+		TargetType:     "privacy-policy",
+	}, s.handleUpdatePrivacyPolicy))
 	s.mux.HandleFunc("GET /api/v1/debug/provider-runs/{runId}", s.secure(routeSpec{
-		Operation:     "getProviderRunDebug",
-		Permission:    auth.PermissionViewDebug,
-		AuditAction:   "provider.debug.read",
-		TargetType:    "recognition-run",
-	}, s.notImplemented("getProviderRunDebug")))
+		Operation:   "getProviderRunDebug",
+		Permission:  auth.PermissionViewDebug,
+		AuditAction: "provider.debug.read",
+		TargetType:  "recognition-run",
+	}, s.handleGetProviderRunDebug))
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -193,4 +228,28 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func buildAIProviders(configs []config.AIProviderConfig) []providerai.Provider {
+	providers := make([]providerai.Provider, 0, len(configs))
+	for _, cfg := range configs {
+		capabilities := make([]providerai.Capability, 0, len(cfg.Capabilities))
+		for _, capability := range cfg.Capabilities {
+			switch strings.ToLower(strings.TrimSpace(capability)) {
+			case string(providerai.CapabilityCaption):
+				capabilities = append(capabilities, providerai.CapabilityCaption)
+			case string(providerai.CapabilityOCR):
+				capabilities = append(capabilities, providerai.CapabilityOCR)
+			case string(providerai.CapabilityEmbedding):
+				capabilities = append(capabilities, providerai.CapabilityEmbedding)
+			}
+		}
+
+		boundary := providerai.BoundaryRemoteService
+		if strings.EqualFold(strings.TrimSpace(cfg.ExecutionBoundary), string(providerai.BoundaryLocalSidecar)) {
+			boundary = providerai.BoundaryLocalSidecar
+		}
+		providers = append(providers, providerai.NewDeterministicProvider(cfg.Name, boundary, capabilities, cfg.Model))
+	}
+	return providers
 }

@@ -29,13 +29,13 @@ const (
 )
 
 type ServiceConfig struct {
-	Repository           Repository
-	Provider             storage.Provider
-	ProviderConfig       config.ObjectStorageProviderConfig
-	UploadCredentialTTL  time.Duration
-	SessionTTL           time.Duration
-	SimilarityThreshold  int
-	Now                  func() time.Time
+	Repository          Repository
+	Provider            storage.Provider
+	ProviderConfig      config.ObjectStorageProviderConfig
+	UploadCredentialTTL time.Duration
+	SessionTTL          time.Duration
+	SimilarityThreshold int
+	Now                 func() time.Time
 }
 
 type Service struct {
@@ -58,13 +58,13 @@ type CreateSessionInput struct {
 }
 
 type CreateUploadTicketInput struct {
-	SessionID      string
-	LibraryID      string
-	FileName       string
-	ContentType    string
-	ContentLength  int64
-	ContentSHA256  string
-	Multipart      bool
+	SessionID     string
+	LibraryID     string
+	FileName      string
+	ContentType   string
+	ContentLength int64
+	ContentSHA256 string
+	Multipart     bool
 }
 
 type UploadTicket struct {
@@ -74,14 +74,14 @@ type UploadTicket struct {
 }
 
 type ConfirmUploadInput struct {
-	SessionID      string
-	LibraryID      string
-	ObjectKey      string
-	ContentLength  int64
-	ETag           string
-	ContentSHA256  string
-	UploadID       string
-	Parts          []storage.CompletedPart
+	SessionID     string
+	LibraryID     string
+	ObjectKey     string
+	ContentLength int64
+	ETag          string
+	ContentSHA256 string
+	UploadID      string
+	Parts         []storage.CompletedPart
 }
 
 type ConfirmResult struct {
@@ -134,6 +134,18 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		similarityThreshold: similarityThreshold,
 		now:                 now,
 	}, nil
+}
+
+func (s *Service) Repository() Repository {
+	return s.repository
+}
+
+func (s *Service) Provider() storage.Provider {
+	return s.provider
+}
+
+func (s *Service) ProviderConfig() config.ObjectStorageProviderConfig {
+	return s.planner.ProviderConfig()
 }
 
 func (s *Service) CreateSession(ctx context.Context, input CreateSessionInput) (ImportSession, error) {
@@ -392,6 +404,7 @@ func (s *Service) createAssetRecord(
 ) (asset.Asset, string, error) {
 	now := s.now().UTC()
 	candidateID := ""
+	var err error
 	imageMetadata := ImageMetadata{}
 	var derivatives []DerivativeImage
 	if strings.HasPrefix(strings.ToLower(mediaType), "image/") {
