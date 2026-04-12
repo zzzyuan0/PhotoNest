@@ -21,6 +21,8 @@ var (
 	ErrSessionLibraryMismatch       = errors.New("import session does not belong to library")
 	ErrUploadValidationFailed       = errors.New("uploaded object validation failed")
 	ErrMultipartConfirmationMissing = errors.New("multipart upload confirmation payload is required")
+	ErrMultipartConfirmationInvalid = errors.New("multipart upload confirmation payload is invalid")
+	ErrUnexpectedMultipartPayload   = errors.New("multipart confirmation payload is only allowed for multipart uploads")
 )
 
 const (
@@ -94,9 +96,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Provider == nil {
 		return nil, fmt.Errorf("storage provider is required")
 	}
-	repository := cfg.Repository
-	if repository == nil {
-		repository = NewMemoryStore()
+	if cfg.Repository == nil {
+		return nil, fmt.Errorf("repository is required")
 	}
 	uploadTTL := cfg.UploadCredentialTTL
 	if uploadTTL <= 0 {
@@ -125,7 +126,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		repository:          repository,
+		repository:          cfg.Repository,
 		provider:            cfg.Provider,
 		planner:             NewUploadPlanner(cfg.Provider, providerCfg),
 		providerName:        providerCfg.Name,
@@ -271,10 +272,11 @@ func (s *Service) ConfirmUpload(ctx context.Context, input ConfirmUploadInput) (
 		}
 	}
 
+	if err := validateConfirmationPayload(item, input); err != nil {
+		return ConfirmResult{}, err
+	}
+
 	if item.Multipart {
-		if strings.TrimSpace(input.UploadID) == "" || len(input.Parts) == 0 {
-			return ConfirmResult{}, ErrMultipartConfirmationMissing
-		}
 		if _, err := s.planner.CompleteMultipartUpload(ctx, item.ObjectKey, input.UploadID, input.Parts); err != nil {
 			return ConfirmResult{}, s.markItemFailure(ctx, session, item, fmt.Errorf("%w: %v", ErrUploadValidationFailed, err))
 		}
@@ -364,6 +366,36 @@ func (s *Service) ConfirmUpload(ctx context.Context, input ConfirmUploadInput) (
 		Asset:         record,
 		ImportSession: session,
 	}, nil
+}
+
+func validateConfirmationPayload(item ImportItem, input ConfirmUploadInput) error {
+	if item.Multipart {
+		if strings.TrimSpace(input.UploadID) == "" || len(input.Parts) == 0 {
+			return ErrMultipartConfirmationMissing
+		}
+
+		seenParts := make(map[int]struct{}, len(input.Parts))
+		lastPart := 0
+		for _, part := range input.Parts {
+			if part.PartNumber <= 0 || strings.TrimSpace(part.ETag) == "" {
+				return ErrMultipartConfirmationInvalid
+			}
+			if _, exists := seenParts[part.PartNumber]; exists {
+				return ErrMultipartConfirmationInvalid
+			}
+			if part.PartNumber < lastPart {
+				return ErrMultipartConfirmationInvalid
+			}
+			seenParts[part.PartNumber] = struct{}{}
+			lastPart = part.PartNumber
+		}
+		return nil
+	}
+
+	if strings.TrimSpace(input.UploadID) != "" || len(input.Parts) > 0 {
+		return ErrUnexpectedMultipartPayload
+	}
+	return nil
 }
 
 func (s *Service) getActiveSession(ctx context.Context, sessionID string, libraryID string) (ImportSession, error) {

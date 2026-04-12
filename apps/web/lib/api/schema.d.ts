@@ -674,14 +674,28 @@ export interface components {
             recoveryPlan: components["schemas"]["RecoveryPlan"];
         };
         UpdateProviderSettingsRequest: {
-            enabled?: boolean;
-            rotateSecrets?: boolean;
-            note?: string;
+            bucket?: string;
+            region?: string;
+            endpoint?: string;
+            keyPrefix?: string;
+            accessKeyId?: string;
+            accessKeySecret?: string;
+            sessionToken?: string;
+            forcePathStyle?: boolean;
+            allowedOrigins?: string[];
+            privateRead?: boolean;
+            publicReadBlockMode?: string;
+            /** Format: uri */
+            healthCheckUrl?: string;
+            corsConfigPath?: string;
         };
         ProviderSettingsResponse: {
             providerName: string;
             /** @enum {string} */
-            status: "pending" | "updated";
+            status: "updated";
+            summary: {
+                [key: string]: unknown;
+            };
         };
         UpdatePrivacyPolicyRequest: {
             /** @enum {string} */

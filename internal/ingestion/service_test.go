@@ -3,6 +3,7 @@ package ingestion
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -172,6 +173,124 @@ func TestServiceHandlesResignDuplicatesAndDerivatives(t *testing.T) {
 	}
 	if similarResult.Asset.DuplicateCandidateOf != firstResult.Asset.ID {
 		t.Fatalf("expected duplicate candidate to point at %s, got %s", firstResult.Asset.ID, similarResult.Asset.DuplicateCandidateOf)
+	}
+}
+
+func TestConfirmUploadRejectsUnexpectedMultipartPayloadForSingleUpload(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	provider := storage.NewMemoryProvider("primary-memory", "photonest-main", "libraries/main")
+	service, err := NewService(ServiceConfig{
+		Repository: store,
+		Provider:   provider,
+		ProviderConfig: config.ObjectStorageProviderConfig{
+			Name:             "primary-memory",
+			Bucket:           "photonest-main",
+			KeyPrefix:        "libraries/main",
+			UploadPresignTTL: storage.MaxUploadTTL,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	payload := mustPNG(t, 0x28, 0x66, 0xa3)
+	contentSHA := SHA256Hex(payload)
+	session, err := service.CreateSession(ctx, CreateSessionInput{
+		LibraryID:         "11111111-1111-1111-1111-111111111111",
+		Source:            SourceWebUpload,
+		ExpectedItemCount: 1,
+		CreatedBy:         "tester",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	ticket, err := service.CreateUploadTicket(ctx, CreateUploadTicketInput{
+		SessionID:     session.ID,
+		LibraryID:     session.LibraryID,
+		FileName:      "single.png",
+		ContentType:   "image/png",
+		ContentLength: int64(len(payload)),
+		ContentSHA256: contentSHA,
+	})
+	if err != nil {
+		t.Fatalf("create ticket: %v", err)
+	}
+	putWithPlan(t, ctx, provider, ticket.Plan, payload, "image/png")
+
+	_, err = service.ConfirmUpload(ctx, ConfirmUploadInput{
+		SessionID:     session.ID,
+		LibraryID:     session.LibraryID,
+		ObjectKey:     ticket.Plan.ObjectKey,
+		ContentLength: int64(len(payload)),
+		ContentSHA256: contentSHA,
+		UploadID:      "unexpected-upload-id",
+		Parts: []storage.CompletedPart{
+			{PartNumber: 1, ETag: "etag-1"},
+		},
+	})
+	if !errors.Is(err, ErrUnexpectedMultipartPayload) {
+		t.Fatalf("expected ErrUnexpectedMultipartPayload, got %v", err)
+	}
+}
+
+func TestConfirmUploadRejectsInvalidMultipartPayload(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	provider := storage.NewMemoryProvider("primary-memory", "photonest-main", "libraries/main")
+	service, err := NewService(ServiceConfig{
+		Repository: store,
+		Provider:   provider,
+		ProviderConfig: config.ObjectStorageProviderConfig{
+			Name:             "primary-memory",
+			Bucket:           "photonest-main",
+			KeyPrefix:        "libraries/main",
+			UploadPresignTTL: storage.MaxUploadTTL,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	payload := mustPNG(t, 0x28, 0x66, 0xa3)
+	contentSHA := SHA256Hex(payload)
+	session, err := service.CreateSession(ctx, CreateSessionInput{
+		LibraryID:         "11111111-1111-1111-1111-111111111111",
+		Source:            SourceWebUpload,
+		ExpectedItemCount: 1,
+		CreatedBy:         "tester",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	ticket, err := service.CreateUploadTicket(ctx, CreateUploadTicketInput{
+		SessionID:     session.ID,
+		LibraryID:     session.LibraryID,
+		FileName:      "multipart.png",
+		ContentType:   "image/png",
+		ContentLength: int64(len(payload)),
+		ContentSHA256: contentSHA,
+		Multipart:     true,
+	})
+	if err != nil {
+		t.Fatalf("create multipart ticket: %v", err)
+	}
+	putWithPlan(t, ctx, provider, ticket.Plan, payload, "image/png")
+
+	_, err = service.ConfirmUpload(ctx, ConfirmUploadInput{
+		SessionID:     session.ID,
+		LibraryID:     session.LibraryID,
+		ObjectKey:     ticket.Plan.ObjectKey,
+		ContentLength: int64(len(payload)),
+		ContentSHA256: contentSHA,
+		UploadID:      "upload-1",
+		Parts: []storage.CompletedPart{
+			{PartNumber: 2, ETag: "etag-2"},
+			{PartNumber: 1, ETag: "etag-1"},
+		},
+	})
+	if !errors.Is(err, ErrMultipartConfirmationInvalid) {
+		t.Fatalf("expected ErrMultipartConfirmationInvalid for out-of-order parts, got %v", err)
 	}
 }
 

@@ -4,6 +4,7 @@ export type ApiError = components['schemas']['Error'];
 export type AuthSession = components['schemas']['AuthSession'];
 export type AuthSessionResponse = components['schemas']['AuthSessionResponse'];
 export type AssetAcceptedResponse = components['schemas']['AssetAcceptedResponse'];
+export type AssetDetailResponse = components['schemas']['AssetDetailResponse'];
 export type AlbumDetailResponse = components['schemas']['AlbumDetailResponse'];
 export type AlbumSummary = components['schemas']['AlbumSummary'];
 export type AlbumsResponse = components['schemas']['AlbumsResponse'];

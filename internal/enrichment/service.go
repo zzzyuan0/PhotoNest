@@ -147,6 +147,10 @@ func (s *Service) GetRecognitionRun(ctx context.Context, runID string) (asset.Re
 	return s.repository.GetRecognitionRunByID(ctx, runID)
 }
 
+func (s *Service) Queue() Queue {
+	return s.queue
+}
+
 func (s *Service) handlePayload(ctx context.Context, payload job.Payload) error {
 	stage := asset.RecognitionStage(strings.TrimSpace(payload.Stage))
 	if strings.TrimSpace(payload.AssetID) == "" {
@@ -792,7 +796,7 @@ func (s *Service) recordStageTelemetry(record asset.Asset, run asset.Recognition
 				"asset_id": record.ID,
 			},
 			Data: map[string]any{
-				"indexed":     record.IndexedAt != nil,
+				"indexed":      record.IndexedAt != nil,
 				"search_terms": len(record.Tags),
 			},
 		})

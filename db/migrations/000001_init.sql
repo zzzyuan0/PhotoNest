@@ -141,7 +141,8 @@ CREATE TABLE import_session_items (
   multipart BOOLEAN NOT NULL DEFAULT FALSE,
   confirmed_at TIMESTAMPTZ,
   failure_reason TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX import_session_items_session_idx ON import_session_items (session_id, created_at DESC);
@@ -155,11 +156,26 @@ CREATE TABLE recognition_stage_runs (
   status TEXT NOT NULL,
   policy_reason TEXT,
   attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   finished_at TIMESTAMPTZ,
   debug_expires_at TIMESTAMPTZ,
   debug_payload JSONB,
   UNIQUE (asset_id, stage)
+);
+
+CREATE TABLE library_policies (
+  library_id UUID PRIMARY KEY REFERENCES libraries(id) ON DELETE CASCADE,
+  mode TEXT NOT NULL,
+  allow_remote_caption BOOLEAN NOT NULL,
+  allow_remote_ocr BOOLEAN NOT NULL,
+  allow_remote_embedding BOOLEAN NOT NULL,
+  allow_gps_persistence BOOLEAN NOT NULL,
+  gps_mode TEXT NOT NULL,
+  ocr_mode TEXT NOT NULL,
+  caption_mode TEXT NOT NULL,
+  embedding_mode TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE albums (

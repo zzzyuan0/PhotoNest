@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 
 import {
   apiFetch,
+  type AssetDetailResponse,
   type AlbumDetailResponse,
   type AlbumsResponse,
   type AuthSessionResponse,
@@ -19,6 +20,7 @@ type AssetSummary = TimelineResponse['items'][number];
 type PlaceSummary = PlacesResponse['items'][number];
 type DuplicateCandidate = DuplicatesResponse['items'][number];
 type AlbumSummary = AlbumsResponse['items'][number];
+type AssetDetail = AssetDetailResponse;
 
 const authSession = ref<Session | null>(null);
 const libraryId = ref('');
@@ -38,6 +40,9 @@ const albums = ref<AlbumSummary[]>([]);
 const newAlbumName = ref('');
 const selectedAlbumId = ref('');
 const selectedAlbum = ref<AlbumDetailResponse | null>(null);
+const selectedAssetId = ref('');
+const selectedAssetDetail = ref<AssetDetail | null>(null);
+const detailLoading = ref(false);
 
 const exportScope = ref<ExportRequest['scope']>('library');
 const exportDateFrom = ref('');
@@ -125,6 +130,9 @@ async function refreshDashboard() {
     if (searchQuery.value.trim() !== '') {
       await runSearch();
     }
+    if (selectedAssetId.value.trim() !== '') {
+      await openAssetDetail(selectedAssetId.value);
+    }
   } catch (caught) {
     error.value = formatError(caught);
   } finally {
@@ -210,6 +218,29 @@ async function openAlbum(albumId: string) {
   } catch (caught) {
     error.value = formatError(caught);
   }
+}
+
+async function openAssetDetail(assetId: string) {
+  if (!canUseDashboard.value || assetId.trim() === '') {
+    return;
+  }
+
+  detailLoading.value = true;
+  selectedAssetId.value = assetId;
+  try {
+    selectedAssetDetail.value = await apiFetch<AssetDetailResponse>(
+      `/api/v1/assets/${assetId}?${baseParams()}`,
+    );
+  } catch (caught) {
+    error.value = formatError(caught);
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+function clearAssetDetail() {
+  selectedAssetId.value = '';
+  selectedAssetDetail.value = null;
 }
 
 async function favoriteAsset(assetId: string) {
@@ -308,6 +339,37 @@ function timelineParams() {
 
 function formatStage(value: string) {
   return value.replaceAll('-', ' ');
+}
+
+function describeStage(value: string) {
+  switch (value) {
+    case 'accepted':
+      return '已接收';
+    case 'stored':
+      return '已入库';
+    case 'derivatives-ready':
+      return '衍生资源已生成';
+    case 'metadata-ready':
+      return '元数据处理中';
+    case 'ai-ready':
+      return 'AI 结果已就绪';
+    case 'indexed':
+      return '已建立索引';
+    case 'partial-failure':
+      return '部分处理失败';
+    default:
+      return formatStage(value);
+  }
+}
+
+function previewStatusLine(item: { processingStage: string; thumbnailToken?: string }) {
+  if (item.thumbnailToken) {
+    return '缩略图令牌已就绪，可继续通过受控句柄读取。';
+  }
+  if (item.processingStage === 'partial-failure') {
+    return '缩略图仍未就绪，当前保留受控占位，避免误判为上传失败。';
+  }
+  return '缩略图仍在后台准备，这张资产已经入库并会继续显示处理中状态。';
 }
 
 function formatError(error: unknown) {
@@ -421,12 +483,16 @@ function formatError(error: unknown) {
 
         <div v-if="displayItems.length > 0" class="asset-list">
           <article v-for="item in displayItems" :key="item.assetId" class="asset-card">
+            <div class="asset-preview" :data-ready="Boolean(item.thumbnailToken)">
+              <strong>{{ item.thumbnailToken ? '缩略图已就绪' : '处理中占位' }}</strong>
+              <span>{{ previewStatusLine(item) }}</span>
+            </div>
             <div class="asset-top">
               <div>
                 <p class="asset-id">{{ item.assetId }}</p>
                 <strong>{{ item.mediaType }}</strong>
               </div>
-              <span class="chip">{{ formatStage(item.processingStage) }}</span>
+              <span class="chip">{{ describeStage(item.processingStage) }}</span>
             </div>
             <p class="asset-time">{{ item.timelineTimestamp }}</p>
             <p class="asset-copy">
@@ -434,9 +500,12 @@ function formatError(error: unknown) {
             </p>
             <div class="asset-meta">
               <span>备份：{{ item.backupStatus }}</span>
-              <span v-if="item.thumbnailToken">缩略图令牌已生成</span>
+              <span>{{ item.thumbnailToken ? '缩略图令牌已生成' : '缩略图待就绪' }}</span>
             </div>
             <div class="asset-actions">
+              <button class="secondary" type="button" @click="openAssetDetail(item.assetId)">
+                查看详情
+              </button>
               <button class="secondary" type="button" @click="favoriteAsset(item.assetId)">
                 加入收藏
               </button>
@@ -595,6 +664,43 @@ function formatError(error: unknown) {
             下载脱敏 manifest
           </a>
         </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-label">Asset Detail</p>
+            <h2>当前资产详情</h2>
+          </div>
+          <button v-if="selectedAssetDetail" class="ghost" type="button" @click="clearAssetDetail">
+            清空
+          </button>
+        </div>
+
+        <div v-if="detailLoading" class="detail-loading">正在拉取资产详情...</div>
+        <div v-else-if="selectedAssetDetail" class="detail-card">
+          <div class="detail-preview" :data-ready="Boolean(selectedAssetDetail.thumbnailToken)">
+            <strong>{{
+              selectedAssetDetail.thumbnailToken ? '缩略图句柄已就绪' : '受控占位展示'
+            }}</strong>
+            <span>{{ previewStatusLine(selectedAssetDetail) }}</span>
+          </div>
+          <p class="detail-id">{{ selectedAssetDetail.assetId }}</p>
+          <p class="detail-copy">
+            {{ selectedAssetDetail.captionPreview || '当前详情已可查询，后台增强仍可能继续推进。' }}
+          </p>
+          <div class="detail-meta">
+            <span>阶段：{{ describeStage(selectedAssetDetail.processingStage) }}</span>
+            <span>备份：{{ selectedAssetDetail.backupStatus }}</span>
+            <span>媒体类型：{{ selectedAssetDetail.mediaType }}</span>
+            <span v-if="selectedAssetDetail.capturedAt">
+              拍摄时间：{{ selectedAssetDetail.capturedAt }}
+            </span>
+          </div>
+        </div>
+        <p v-else class="empty">
+          从时间线卡片点“查看详情”后，这里会显示当前资产的处理状态与占位展示。
+        </p>
       </article>
     </div>
   </section>
@@ -812,6 +918,23 @@ select {
   padding: 18px;
 }
 
+.asset-preview,
+.detail-preview {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(16, 52, 58, 0.06);
+  color: #305258;
+}
+
+.asset-preview[data-ready='true'],
+.detail-preview[data-ready='true'] {
+  background: rgba(51, 127, 89, 0.1);
+  color: #23503d;
+}
+
 .asset-top,
 .pair-head {
   display: flex;
@@ -832,12 +955,24 @@ select {
   line-height: 1.7;
 }
 
+.detail-copy {
+  margin: 14px 0;
+  color: #526365;
+  line-height: 1.7;
+}
+
 .asset-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 14px;
   font-size: 0.92rem;
+}
+
+.detail-meta {
+  display: grid;
+  gap: 8px;
+  color: #526365;
 }
 
 .chip {
@@ -900,6 +1035,18 @@ select {
 
 .selected-album {
   margin-top: 24px;
+}
+
+.detail-card {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-id,
+.detail-loading {
+  margin: 0;
+  color: #17363b;
+  font-family: 'Azeret Mono', 'IBM Plex Mono', monospace;
 }
 
 @media (max-width: 1024px) {

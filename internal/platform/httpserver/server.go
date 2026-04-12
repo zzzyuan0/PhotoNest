@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/photonest/photonest/internal/backup"
 	"github.com/photonest/photonest/internal/discovery"
@@ -15,22 +16,26 @@ import (
 	"github.com/photonest/photonest/internal/platform/auth"
 	"github.com/photonest/photonest/internal/platform/config"
 	"github.com/photonest/photonest/internal/platform/health"
+	"github.com/photonest/photonest/internal/platform/persistence"
 	"github.com/photonest/photonest/internal/platform/telemetry"
 	providerai "github.com/photonest/photonest/internal/provider/ai"
 	"github.com/photonest/photonest/internal/provider/storage"
 )
 
 type Server struct {
-	cfg       config.AppConfig
-	checker   health.Checker
-	auth      *auth.Manager
-	audit     *audit.Logger
-	ingestion *ingestion.Service
-	discovery *discovery.Service
-	enrich    *enrichment.Service
-	backup    *backup.Service
-	telemetry *telemetry.Collector
-	mux       *http.ServeMux
+	mu                sync.RWMutex
+	cfg               config.AppConfig
+	checker           health.Checker
+	auth              *auth.Manager
+	audit             *audit.Logger
+	ingestion         *ingestion.Service
+	discovery         *discovery.Service
+	enrich            *enrichment.Service
+	backup            *backup.Service
+	telemetry         *telemetry.Collector
+	providerFactory   func(context.Context, config.ObjectStorageProviderConfig) (storage.Provider, error)
+	providerValidator func(context.Context, config.ObjectStorageProviderConfig) error
+	mux               *http.ServeMux
 }
 
 func New(cfg config.AppConfig, checker health.Checker) (http.Handler, error) {
@@ -51,12 +56,23 @@ func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Depe
 		return nil, fmt.Errorf("create auth manager: %w", err)
 	}
 
+	var repository *persistence.PostgresRepository
+	if deps.Ingestion == nil && strings.TrimSpace(cfg.StorageProviders.Primary.Kind) != "" {
+		db, err := persistence.OpenPostgres(context.Background(), cfg.Database)
+		if err != nil {
+			return nil, fmt.Errorf("open postgres: %w", err)
+		}
+		repository = persistence.NewPostgresRepository(db)
+	}
+	queue := persistence.NewRedisQueue(cfg.Queue)
+
 	if deps.Ingestion == nil && strings.TrimSpace(cfg.StorageProviders.Primary.Kind) != "" {
 		provider, err := storage.NewProvider(context.Background(), cfg.StorageProviders.Primary)
 		if err != nil {
 			return nil, fmt.Errorf("create storage provider: %w", err)
 		}
 		deps.Ingestion, err = ingestion.NewService(ingestion.ServiceConfig{
+			Repository:          repository,
 			Provider:            provider,
 			ProviderConfig:      cfg.StorageProviders.Primary,
 			UploadCredentialTTL: cfg.Security.UploadCredentialTTL,
@@ -81,7 +97,7 @@ func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Depe
 			Repository:          deps.Ingestion.Repository(),
 			Storage:             deps.Ingestion.Provider(),
 			AIProviders:         buildAIProviders(cfg.AIProviders),
-			Queue:               enrichment.NewMemoryQueue(),
+			Queue:               queue,
 			DownloadTTL:         cfg.Security.DownloadCredentialTTL,
 			DebugRetention:      cfg.Security.DebugRetention,
 			RetainProviderDebug: true,
@@ -121,16 +137,18 @@ func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Depe
 	}
 
 	server := &Server{
-		cfg:       cfg,
-		checker:   checker,
-		auth:      authManager,
-		audit:     audit.NewLogger(collector),
-		ingestion: deps.Ingestion,
-		discovery: deps.Discovery,
-		enrich:    deps.Enrichment,
-		backup:    deps.Backup,
-		telemetry: collector,
-		mux:       http.NewServeMux(),
+		cfg:               cfg,
+		checker:           checker,
+		auth:              authManager,
+		audit:             audit.NewLogger(collector),
+		ingestion:         deps.Ingestion,
+		discovery:         deps.Discovery,
+		enrich:            deps.Enrichment,
+		backup:            deps.Backup,
+		telemetry:         collector,
+		providerFactory:   storage.NewProvider,
+		providerValidator: storage.ValidateProvider,
+		mux:               http.NewServeMux(),
 	}
 
 	server.routes()
@@ -261,7 +279,7 @@ func (s *Server) routes() {
 		RequireRecent: true,
 		AuditAction:   "provider.settings.update",
 		TargetType:    "provider",
-	}, s.notImplemented("updateProviderSettings")))
+	}, s.handleUpdateProviderSettings))
 	s.mux.HandleFunc("PUT /api/v1/settings/privacy-policy", s.secure(routeSpec{
 		Operation:      "updatePrivacyPolicy",
 		Permission:     auth.PermissionManagePrivacy,

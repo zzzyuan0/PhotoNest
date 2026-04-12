@@ -227,7 +227,9 @@ func (s *Server) writeImportError(w http.ResponseWriter, err error) {
 		s.writeError(w, http.StatusConflict, "import_conflict", err.Error(), nil)
 	case errors.Is(err, ingestion.ErrSessionLibraryMismatch):
 		s.writeError(w, http.StatusForbidden, "forbidden", err.Error(), nil)
-	case errors.Is(err, ingestion.ErrMultipartConfirmationMissing):
+	case errors.Is(err, ingestion.ErrMultipartConfirmationMissing),
+		errors.Is(err, ingestion.ErrMultipartConfirmationInvalid),
+		errors.Is(err, ingestion.ErrUnexpectedMultipartPayload):
 		s.writeError(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 	default:
 		s.writeError(w, http.StatusInternalServerError, "import_failed", err.Error(), nil)

@@ -1230,21 +1230,47 @@ components:
     UpdateProviderSettingsRequest:
       type: object
       properties:
-        enabled:
+        bucket:
+          type: string
+        region:
+          type: string
+        endpoint:
+          type: string
+        keyPrefix:
+          type: string
+        accessKeyId:
+          type: string
+        accessKeySecret:
+          type: string
+        sessionToken:
+          type: string
+        forcePathStyle:
           type: boolean
-        rotateSecrets:
+        allowedOrigins:
+          type: array
+          items:
+            type: string
+        privateRead:
           type: boolean
-        note:
+        publicReadBlockMode:
+          type: string
+        healthCheckUrl:
+          type: string
+          format: uri
+        corsConfigPath:
           type: string
     ProviderSettingsResponse:
       type: object
-      required: [providerName, status]
+      required: [providerName, status, summary]
       properties:
         providerName:
           type: string
         status:
           type: string
-          enum: [pending, updated]
+          enum: [updated]
+        summary:
+          type: object
+          additionalProperties: true
     UpdatePrivacyPolicyRequest:
       type: object
       required: [gpsMode, ocrMode, captionMode, embeddingMode]
