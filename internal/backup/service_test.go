@@ -1,4 +1,4 @@
-package backup
+package backup_test
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/photonest/photonest/internal/backup"
 	"github.com/photonest/photonest/internal/discovery"
 	"github.com/photonest/photonest/internal/ingestion"
 	"github.com/photonest/photonest/internal/platform/config"
@@ -41,11 +42,11 @@ func TestServiceCopiesAssetsAndBuildsExportRecoveryPlan(t *testing.T) {
 
 	accepted := uploadAsset(t, ctx, ingestionService, primary, "family-trip.png")
 
-	service, err := NewService(ServiceConfig{
+	service, err := backup.NewService(backup.ServiceConfig{
 		Repository:     store,
 		PrimaryStorage: primary,
 		ArtifactStore:  primary,
-		BackupProviders: []ConfiguredProvider{
+		BackupProviders: []backup.ConfiguredProvider{
 			{
 				Provider:    secondary,
 				Name:        "backup-memory",
@@ -96,9 +97,9 @@ func TestServiceCopiesAssetsAndBuildsExportRecoveryPlan(t *testing.T) {
 		t.Fatalf("add asset to album: %v", err)
 	}
 
-	job, err := service.CreateExport(ctx, CreateExportInput{
+	job, err := service.CreateExport(ctx, backup.CreateExportInput{
 		LibraryID: testLibraryID,
-		Scope:     ExportScopeAlbum,
+		Scope:     backup.ExportScopeAlbum,
 		AlbumID:   album.ID,
 	})
 	if err != nil {

@@ -25,10 +25,11 @@ type routeSpec struct {
 
 func (s *Server) secure(spec routeSpec, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		auditAction := resolvedAuditAction(spec)
 		session, source, err := s.auth.AuthenticateRequest(r)
 		if err != nil {
 			s.recordAudit(r.Context(), audit.Event{
-				Action:     spec.AuditAction,
+				Action:     auditAction,
 				Result:     classifyAuthError(err),
 				TargetType: spec.TargetType,
 				Method:     r.Method,
@@ -60,12 +61,12 @@ func (s *Server) secure(spec routeSpec, next http.HandlerFunc) http.HandlerFunc 
 					return
 				}
 			}
-			if !session.CanAccessLibrary(libraryID) {
-				s.recordAudit(r.Context(), audit.Event{
-					Action:     spec.AuditAction,
-					Result:     audit.ResultDenied,
-					SubjectID:  session.SubjectID,
-					SessionID:  session.ID,
+				if !session.CanAccessLibrary(libraryID) {
+					s.recordAudit(r.Context(), audit.Event{
+						Action:     auditAction,
+						Result:     audit.ResultDenied,
+						SubjectID:  session.SubjectID,
+						SessionID:  session.ID,
 					LibraryID:  libraryID,
 					TargetType: spec.TargetType,
 					Method:     r.Method,
@@ -86,12 +87,12 @@ func (s *Server) secure(spec routeSpec, next http.HandlerFunc) http.HandlerFunc 
 			principal.LibraryID = libraryID
 		}
 
-		if !session.HasPermission(spec.Permission) {
-			s.recordAudit(r.Context(), audit.Event{
-				Action:     spec.AuditAction,
-				Result:     audit.ResultDenied,
-				SubjectID:  session.SubjectID,
-				SessionID:  session.ID,
+			if !session.HasPermission(spec.Permission) {
+				s.recordAudit(r.Context(), audit.Event{
+					Action:     auditAction,
+					Result:     audit.ResultDenied,
+					SubjectID:  session.SubjectID,
+					SessionID:  session.ID,
 				LibraryID:  principal.LibraryID,
 				TargetType: spec.TargetType,
 				Method:     r.Method,
@@ -110,13 +111,13 @@ func (s *Server) secure(spec routeSpec, next http.HandlerFunc) http.HandlerFunc 
 			return
 		}
 
-		if spec.RequireCSRF && s.auth.ShouldEnforceCSRF(r, source) {
-			if err := s.auth.ValidateCSRF(r, session); err != nil {
-				s.recordAudit(r.Context(), audit.Event{
-					Action:     spec.AuditAction,
-					Result:     classifyAuthError(err),
-					SubjectID:  session.SubjectID,
-					SessionID:  session.ID,
+			if spec.RequireCSRF && s.auth.ShouldEnforceCSRF(r, source) {
+				if err := s.auth.ValidateCSRF(r, session); err != nil {
+					s.recordAudit(r.Context(), audit.Event{
+						Action:     auditAction,
+						Result:     classifyAuthError(err),
+						SubjectID:  session.SubjectID,
+						SessionID:  session.ID,
 					LibraryID:  principal.LibraryID,
 					TargetType: spec.TargetType,
 					Method:     r.Method,
@@ -133,13 +134,13 @@ func (s *Server) secure(spec routeSpec, next http.HandlerFunc) http.HandlerFunc 
 			}
 		}
 
-		if spec.RequireRecent {
-			if err := s.auth.EnsureRecentAuth(session); err != nil {
-				s.recordAudit(r.Context(), audit.Event{
-					Action:     spec.AuditAction,
-					Result:     classifyAuthError(err),
-					SubjectID:  session.SubjectID,
-					SessionID:  session.ID,
+			if spec.RequireRecent {
+				if err := s.auth.EnsureRecentAuth(session); err != nil {
+					s.recordAudit(r.Context(), audit.Event{
+						Action:     auditAction,
+						Result:     classifyAuthError(err),
+						SubjectID:  session.SubjectID,
+						SessionID:  session.ID,
 					LibraryID:  principal.LibraryID,
 					TargetType: spec.TargetType,
 					Method:     r.Method,
@@ -159,12 +160,12 @@ func (s *Server) secure(spec routeSpec, next http.HandlerFunc) http.HandlerFunc 
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next(recorder, r.WithContext(ctx))
 
-		if spec.AuditAction != "" {
-			s.recordAudit(ctx, audit.Event{
-				Action:     spec.AuditAction,
-				Result:     statusToAuditResult(recorder.status),
-				SubjectID:  session.SubjectID,
-				SessionID:  session.ID,
+			if auditAction != "" {
+				s.recordAudit(ctx, audit.Event{
+					Action:     auditAction,
+					Result:     statusToAuditResult(recorder.status),
+					SubjectID:  session.SubjectID,
+					SessionID:  session.ID,
 				LibraryID:  principal.LibraryID,
 				TargetType: spec.TargetType,
 				TargetID:   resolveTargetID(r),
@@ -179,6 +180,13 @@ func (s *Server) secure(spec routeSpec, next http.HandlerFunc) http.HandlerFunc 
 			})
 		}
 	}
+}
+
+func resolvedAuditAction(spec routeSpec) string {
+	if strings.TrimSpace(spec.AuditAction) != "" {
+		return spec.AuditAction
+	}
+	return strings.TrimSpace(spec.Operation)
 }
 
 func (s *Server) writeAuthError(w http.ResponseWriter, err error) {

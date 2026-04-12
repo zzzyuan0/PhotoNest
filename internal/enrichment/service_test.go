@@ -515,9 +515,9 @@ func sampleSimilarPNG(t *testing.T) []byte {
 	img := image.NewRGBA(image.Rect(0, 0, 48, 48))
 	for y := 0; y < 48; y++ {
 		for x := 0; x < 48; x++ {
-			colorValue := color.RGBA{R: 0x2d, G: 0x69 + uint8((x+y)%4), B: 0xa0, A: 255}
-			if x > 30 && y > 30 {
-				colorValue = color.RGBA{R: 0x3b, G: 0x88, B: 0xb2, A: 255}
+			colorValue := color.RGBA{R: 0x28, G: 0x66 + uint8((x+y)%3), B: 0xa3, A: 255}
+			if x >= 36 && x < 42 && y >= 36 && y < 42 {
+				colorValue = color.RGBA{R: 0x31, G: 0x78, B: 0xad, A: 255}
 			}
 			img.Set(x, y, colorValue)
 		}
