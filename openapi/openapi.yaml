@@ -183,6 +183,31 @@ paths:
             minimum: 1
             maximum: 100
             default: 30
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: location
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: stage
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: backupStatus
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           description: 时间线结果
@@ -190,6 +215,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TimelineResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/discovery/places:
+    get:
+      tags: [Discovery]
+      summary: 获取地点聚合浏览结果
+      operationId: listPlaceSummaries
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LibraryId'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 地点聚合结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlacesResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/discovery/duplicates:
+    get:
+      tags: [Discovery]
+      summary: 获取重复照片审查候选
+      operationId: listDuplicateCandidates
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LibraryId'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 重复候选结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicatesResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/discovery/search:
@@ -229,6 +308,110 @@ paths:
                 $ref: '#/components/schemas/SearchResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/albums:
+    get:
+      tags: [Discovery]
+      summary: 获取收藏和精选相册列表
+      operationId: listAlbums
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LibraryId'
+      responses:
+        '200':
+          description: 相册列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumsResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags: [Discovery]
+      summary: 创建精选相册
+      operationId: createAlbum
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAlbumRequest'
+      responses:
+        '201':
+          description: 相册已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumSummary'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/albums/{albumId}:
+    get:
+      tags: [Discovery]
+      summary: 获取单个相册及其资产
+      operationId: getAlbumDetail
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AlbumId'
+        - $ref: '#/components/parameters/LibraryId'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: 相册详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumDetailResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/albums/{albumId}/assets:
+    post:
+      tags: [Discovery]
+      summary: 向相册添加资产
+      operationId: addAlbumAsset
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AlbumId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddAlbumAssetRequest'
+      responses:
+        '200':
+          description: 相册已更新
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, albumId, assetId]
+                properties:
+                  status:
+                    type: string
+                  albumId:
+                    type: string
+                    format: uuid
+                  assetId:
+                    type: string
+                    format: uuid
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/assets/{assetId}:
     get:
       tags: [Assets]
@@ -247,6 +430,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AssetDetail'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/assets/{assetId}/favorite:
+    put:
+      tags: [Discovery]
+      summary: 更新资产收藏状态
+      operationId: setFavoriteAsset
+      security:
+        - bearerAuth: []
+        - sessionCookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetFavoriteRequest'
+      responses:
+        '200':
+          description: 收藏状态已更新
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, assetId, favorite]
+                properties:
+                  status:
+                    type: string
+                  assetId:
+                    type: string
+                    format: uuid
+                  favorite:
+                    type: boolean
+                  album:
+                    $ref: '#/components/schemas/AlbumSummary'
         default:
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/assets/{assetId}/download:
@@ -413,6 +632,13 @@ components:
       required: true
       schema:
         type: string
+    AlbumId:
+      name: albumId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     RunId:
       name: runId
       in: path
@@ -742,6 +968,51 @@ components:
             $ref: '#/components/schemas/AssetSummary'
         pageInfo:
           $ref: '#/components/schemas/CursorPageInfo'
+    PlaceSummary:
+      type: object
+      required: [label, count, latestAt, latestAsset]
+      properties:
+        label:
+          type: string
+        count:
+          type: integer
+        latestAt:
+          type: string
+          format: date-time
+        latestAsset:
+          $ref: '#/components/schemas/AssetSummary'
+    PlacesResponse:
+      type: object
+      required: [libraryId, items]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaceSummary'
+    DuplicateCandidate:
+      type: object
+      required: [primary, candidate, exact]
+      properties:
+        primary:
+          $ref: '#/components/schemas/AssetSummary'
+        candidate:
+          $ref: '#/components/schemas/AssetSummary'
+        exact:
+          type: boolean
+    DuplicatesResponse:
+      type: object
+      required: [libraryId, items]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateCandidate'
     SearchResponse:
       type: object
       required: [libraryId, query, items, pageInfo]
@@ -780,6 +1051,48 @@ components:
           type: string
         thumbnailToken:
           type: string
+    AlbumSummary:
+      type: object
+      required: [albumId, slug, displayName, kind, assetCount]
+      properties:
+        albumId:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        displayName:
+          type: string
+        kind:
+          type: string
+          enum: [favorites, curated, duplicates-review]
+        assetCount:
+          type: integer
+    AlbumsResponse:
+      type: object
+      required: [libraryId, items]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlbumSummary'
+    AlbumDetailResponse:
+      type: object
+      required: [libraryId, album, items, pageInfo]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        album:
+          $ref: '#/components/schemas/AlbumSummary'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetSummary'
+        pageInfo:
+          $ref: '#/components/schemas/CursorPageInfo'
     DownloadGrant:
       type: object
       required: [assetId, status]
@@ -818,6 +1131,34 @@ components:
         status:
           type: string
           enum: [queued, running, ready, failed]
+    CreateAlbumRequest:
+      type: object
+      required: [libraryId, displayName]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+    AddAlbumAssetRequest:
+      type: object
+      required: [libraryId, assetId]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+    SetFavoriteRequest:
+      type: object
+      required: [libraryId, favorite]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        favorite:
+          type: boolean
     ExportRequest:
       type: object
       required: [libraryId, scope]
@@ -837,22 +1178,55 @@ components:
         dateTo:
           type: string
           format: date
+    RecoveryPlan:
+      type: object
+      required: [assetCount, objectCount, backupVerifiedCount, requiredMetadata]
+      properties:
+        assetCount:
+          type: integer
+        objectCount:
+          type: integer
+        backupVerifiedCount:
+          type: integer
+        requiredMetadata:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
     ExportJob:
       type: object
-      required: [jobId, status]
+      required: [id, libraryId, scope, status, assetCount, expiresAt, createdAt, recoveryPlan]
       properties:
-        jobId:
+        id:
+          type: string
+        libraryId:
           type: string
           format: uuid
+        scope:
+          type: string
+          enum: [library, album, date-range]
         status:
           type: string
-          enum: [queued, running, ready, failed]
-        downloadUrl:
+          enum: [ready, failed]
+        assetCount:
+          type: integer
+        archiveUrl:
+          type: string
+          format: uri
+        redactedManifestUrl:
           type: string
           format: uri
         expiresAt:
           type: string
           format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        recoveryPlan:
+          $ref: '#/components/schemas/RecoveryPlan'
     UpdateProviderSettingsRequest:
       type: object
       properties:

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/photonest/photonest/internal/asset"
+	"github.com/photonest/photonest/internal/backup"
+	"github.com/photonest/photonest/internal/discovery"
 	"github.com/photonest/photonest/internal/library"
 )
 
@@ -66,6 +68,14 @@ type MemoryStore struct {
 	recognitionRuns  map[string]asset.RecognitionRun
 	assetRuns        map[string][]string
 	libraryPolicies  map[string]library.Policy
+	albums           map[string]discovery.Album
+	libraryAlbums    map[string][]string
+	albumAssets      map[string][]string
+	backupTargets    map[string]backup.Target
+	backupTargetByProvider map[string]string
+	backupRecords    map[string]backup.Record
+	assetBackupRecords map[string][]string
+	backupRecordIndex map[string]string
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -81,6 +91,14 @@ func NewMemoryStore() *MemoryStore {
 		recognitionRuns:  map[string]asset.RecognitionRun{},
 		assetRuns:        map[string][]string{},
 		libraryPolicies:  map[string]library.Policy{},
+		albums:           map[string]discovery.Album{},
+		libraryAlbums:    map[string][]string{},
+		albumAssets:      map[string][]string{},
+		backupTargets:    map[string]backup.Target{},
+		backupTargetByProvider: map[string]string{},
+		backupRecords:    map[string]backup.Record{},
+		assetBackupRecords: map[string][]string{},
+		backupRecordIndex: map[string]string{},
 	}
 }
 
@@ -397,6 +415,201 @@ func (s *MemoryStore) GetLibraryPolicy(_ context.Context, libraryID string) (lib
 	return policy.WithDefaults(), nil
 }
 
+func (s *MemoryStore) ListAlbums(_ context.Context, libraryID string) ([]discovery.Album, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.ensureSystemAlbumLocked(strings.TrimSpace(libraryID), discovery.AlbumKindFavorites)
+
+	albumIDs := s.libraryAlbums[strings.TrimSpace(libraryID)]
+	records := make([]discovery.Album, 0, len(albumIDs))
+	for _, albumID := range albumIDs {
+		record, ok := s.albums[albumID]
+		if !ok {
+			continue
+		}
+		record.AssetCount = len(s.albumAssets[record.ID])
+		records = append(records, record)
+	}
+	return records, nil
+}
+
+func (s *MemoryStore) GetAlbum(_ context.Context, albumID string) (discovery.Album, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	record, ok := s.albums[strings.TrimSpace(albumID)]
+	if !ok {
+		return discovery.Album{}, fmt.Errorf("album not found")
+	}
+	record.AssetCount = len(s.albumAssets[record.ID])
+	return record, nil
+}
+
+func (s *MemoryStore) CreateAlbum(_ context.Context, album discovery.Album) (discovery.Album, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	record := album
+	if strings.TrimSpace(record.ID) == "" {
+		record.ID = newOpaqueID()
+	}
+	record.LibraryID = strings.TrimSpace(record.LibraryID)
+	record.Slug = strings.TrimSpace(record.Slug)
+	record.DisplayName = strings.TrimSpace(record.DisplayName)
+	if record.Kind == "" {
+		record.Kind = discovery.AlbumKindCurated
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	for _, existingID := range s.libraryAlbums[record.LibraryID] {
+		existing := s.albums[existingID]
+		if strings.EqualFold(existing.Slug, record.Slug) {
+			return discovery.Album{}, fmt.Errorf("album slug already exists")
+		}
+	}
+	s.albums[record.ID] = record
+	s.libraryAlbums[record.LibraryID] = append(s.libraryAlbums[record.LibraryID], record.ID)
+	record.AssetCount = len(s.albumAssets[record.ID])
+	return record, nil
+}
+
+func (s *MemoryStore) EnsureSystemAlbum(_ context.Context, libraryID string, kind discovery.AlbumKind) (discovery.Album, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	record := s.ensureSystemAlbumLocked(strings.TrimSpace(libraryID), kind)
+	record.AssetCount = len(s.albumAssets[record.ID])
+	return record, nil
+}
+
+func (s *MemoryStore) AddAssetToAlbum(_ context.Context, albumID string, assetID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	albumID = strings.TrimSpace(albumID)
+	assetID = strings.TrimSpace(assetID)
+	if _, ok := s.albums[albumID]; !ok {
+		return fmt.Errorf("album not found")
+	}
+	if _, ok := s.assets[assetID]; !ok {
+		return ErrAssetNotFound
+	}
+	if slices.Contains(s.albumAssets[albumID], assetID) {
+		return nil
+	}
+	s.albumAssets[albumID] = append(s.albumAssets[albumID], assetID)
+	return nil
+}
+
+func (s *MemoryStore) RemoveAssetFromAlbum(_ context.Context, albumID string, assetID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	albumID = strings.TrimSpace(albumID)
+	assetID = strings.TrimSpace(assetID)
+	records := s.albumAssets[albumID]
+	filtered := records[:0]
+	for _, candidate := range records {
+		if strings.EqualFold(strings.TrimSpace(candidate), assetID) {
+			continue
+		}
+		filtered = append(filtered, candidate)
+	}
+	s.albumAssets[albumID] = slices.Clone(filtered)
+	return nil
+}
+
+func (s *MemoryStore) ListAssetIDsByAlbum(_ context.Context, albumID string) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return slices.Clone(s.albumAssets[strings.TrimSpace(albumID)]), nil
+}
+
+func (s *MemoryStore) GetBackupTargetByProvider(_ context.Context, providerName string) (backup.Target, bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	targetID, ok := s.backupTargetByProvider[strings.TrimSpace(providerName)]
+	if !ok {
+		return backup.Target{}, false, nil
+	}
+	record, ok := s.backupTargets[targetID]
+	if !ok {
+		return backup.Target{}, false, nil
+	}
+	return cloneBackupTarget(record), true, nil
+}
+
+func (s *MemoryStore) SaveBackupTarget(_ context.Context, target backup.Target) (backup.Target, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	record := cloneBackupTarget(target)
+	if strings.TrimSpace(record.ID) == "" {
+		record.ID = newOpaqueID()
+	}
+	record.ProviderName = strings.TrimSpace(record.ProviderName)
+	record.BucketName = strings.TrimSpace(record.BucketName)
+	record.Endpoint = strings.TrimSpace(record.Endpoint)
+	record.KeyPrefix = strings.TrimSpace(record.KeyPrefix)
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+
+	if existingID, ok := s.backupTargetByProvider[record.ProviderName]; ok {
+		record.ID = existingID
+	}
+
+	s.backupTargets[record.ID] = record
+	s.backupTargetByProvider[record.ProviderName] = record.ID
+	return cloneBackupTarget(record), nil
+}
+
+func (s *MemoryStore) SaveBackupRecord(_ context.Context, record backup.Record) (backup.Record, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cloned := cloneBackupRecord(record)
+	if strings.TrimSpace(cloned.ID) == "" {
+		cloned.ID = newOpaqueID()
+	}
+	if cloned.CreatedAt.IsZero() {
+		cloned.CreatedAt = time.Now().UTC()
+	}
+	if cloned.UpdatedAt.IsZero() {
+		cloned.UpdatedAt = cloned.CreatedAt
+	}
+	indexKey := backupRecordKey(cloned.AssetID, cloned.TargetID, cloned.SourceObjectReferenceID)
+	if existingID, ok := s.backupRecordIndex[indexKey]; ok {
+		cloned.ID = existingID
+	}
+	s.backupRecords[cloned.ID] = cloned
+	s.backupRecordIndex[indexKey] = cloned.ID
+	if !slices.Contains(s.assetBackupRecords[cloned.AssetID], cloned.ID) {
+		s.assetBackupRecords[cloned.AssetID] = append(s.assetBackupRecords[cloned.AssetID], cloned.ID)
+	}
+	return cloneBackupRecord(cloned), nil
+}
+
+func (s *MemoryStore) ListBackupRecordsByAsset(_ context.Context, assetID string) ([]backup.Record, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	recordIDs := s.assetBackupRecords[strings.TrimSpace(assetID)]
+	records := make([]backup.Record, 0, len(recordIDs))
+	for _, recordID := range recordIDs {
+		record, ok := s.backupRecords[recordID]
+		if !ok {
+			continue
+		}
+		records = append(records, cloneBackupRecord(record))
+	}
+	return records, nil
+}
+
 func contentSHAKey(libraryID string, contentSHA string) string {
 	return strings.TrimSpace(libraryID) + ":" + strings.TrimSpace(contentSHA)
 }
@@ -436,10 +649,15 @@ func cloneAsset(record asset.Asset) asset.Asset {
 		capturedAt := *record.CapturedAt
 		record.CapturedAt = &capturedAt
 	}
+	if record.IndexedAt != nil {
+		indexedAt := *record.IndexedAt
+		record.IndexedAt = &indexedAt
+	}
 	record.GPSLatitude = cloneFloat64Pointer(record.GPSLatitude)
 	record.GPSLongitude = cloneFloat64Pointer(record.GPSLongitude)
 	record.Tags = slices.Clone(record.Tags)
 	record.Embedding = slices.Clone(record.Embedding)
+	record.SearchEmbedding = slices.Clone(record.SearchEmbedding)
 	return record
 }
 
@@ -480,4 +698,51 @@ func cloneFloat64Pointer(input *float64) *float64 {
 
 	value := *input
 	return &value
+}
+
+func cloneBackupTarget(target backup.Target) backup.Target {
+	return target
+}
+
+func cloneBackupRecord(record backup.Record) backup.Record {
+	if record.VerifiedAt != nil {
+		verifiedAt := *record.VerifiedAt
+		record.VerifiedAt = &verifiedAt
+	}
+	return record
+}
+
+func backupRecordKey(assetID string, targetID string, sourceObjectReferenceID string) string {
+	return strings.TrimSpace(assetID) + ":" + strings.TrimSpace(targetID) + ":" + strings.TrimSpace(sourceObjectReferenceID)
+}
+
+func (s *MemoryStore) ensureSystemAlbumLocked(libraryID string, kind discovery.AlbumKind) discovery.Album {
+	for _, albumID := range s.libraryAlbums[libraryID] {
+		record := s.albums[albumID]
+		if record.Kind == kind {
+			return record
+		}
+	}
+
+	record := discovery.Album{
+		ID:        newOpaqueID(),
+		LibraryID: libraryID,
+		Kind:      kind,
+		CreatedAt: time.Now().UTC(),
+	}
+	switch kind {
+	case discovery.AlbumKindFavorites:
+		record.Slug = "favorites"
+		record.DisplayName = "收藏"
+	case discovery.AlbumKindDuplicatesReview:
+		record.Slug = "duplicates-review"
+		record.DisplayName = "重复审查"
+	default:
+		record.Slug = "system"
+		record.DisplayName = "系统相册"
+	}
+
+	s.albums[record.ID] = record
+	s.libraryAlbums[libraryID] = append(s.libraryAlbums[libraryID], record.ID)
+	return record
 }

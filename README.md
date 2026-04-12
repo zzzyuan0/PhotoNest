@@ -2,7 +2,7 @@
 
 PhotoNest 是一个面向个人分散照片库的照片管理平台，目标是把来自手机相册、聊天导出文件、云盘和本地目录的照片与视频统一收拢到一个可检索、可增强、可备份的主库中。
 
-项目当前处于 OpenSpec 驱动的设计阶段：仓库里已经整理了产品范围、架构决策、能力规格和任务拆分，但业务代码还没有开始实现。这份 README 的目标是帮助后续开发者快速理解项目定位，并找到下一步落地入口。
+项目当前已经从 OpenSpec 设计阶段进入 MVP 实现阶段：仓库中已经具备导入、识别增强、时间线/地点浏览、混合搜索、收藏与精选相册、备份复制、受控导出以及基础安全边界的最小可运行实现。这份 README 的目标是帮助后续开发者快速理解项目定位，并找到下一步落地入口。
 
 ## 项目目标
 
@@ -16,10 +16,11 @@ PhotoNest 是一个面向个人分散照片库的照片管理平台，目标是�
 ## 当前状态
 
 - 已完成：OpenSpec proposal、design、specs 与 tasks 初稿
-- 已完成：仓库初始化、GitHub 远程仓库配置
-- 待开始：项目代码结构、运行时、数据库 schema、导入链路与 Worker
+- 已完成：Nuxt Web、Go API/Worker、数据库迁移与 OpenAPI Client 生成骨架
+- 已完成：导入、识别增强、时间线/地点浏览、混合搜索、收藏/相册、备份复制与导出闭环的最小实现
+- 持续完善中：更多 Provider、真实数据库接入、可观测性细化与生产部署加固
 
-如果你现在准备开始实现，建议优先从“基础设施”阶段进入，也就是先创建共享领域模型、API/Worker 运行时和本地开发依赖。
+如果你现在准备继续推进，建议优先从“验证与交付准备”阶段进入，例如补更多端到端测试、生产存储接入以及运维自动化。
 
 ## 核心能力
 
@@ -103,3 +104,4 @@ PhotoNest 是一个面向个人分散照片库的照片管理平台，目标是�
 - [Proposal](./openspec/changes/build-ai-photo-management-platform/proposal.md)
 - [Design](./openspec/changes/build-ai-photo-management-platform/design.md)
 - [Tasks](./openspec/changes/build-ai-photo-management-platform/tasks.md)
+- [Operations](./docs/operations.md)

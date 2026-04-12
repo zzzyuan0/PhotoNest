@@ -140,6 +140,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discovery/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取地点聚合浏览结果 */
+        get: operations["listPlaceSummaries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discovery/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取重复照片审查候选 */
+        get: operations["listDuplicateCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/discovery/search": {
         parameters: {
             query?: never;
@@ -157,6 +191,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/albums": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取收藏和精选相册列表 */
+        get: operations["listAlbums"];
+        put?: never;
+        /** 创建精选相册 */
+        post: operations["createAlbum"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/albums/{albumId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取单个相册及其资产 */
+        get: operations["getAlbumDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/albums/{albumId}/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 向相册添加资产 */
+        post: operations["addAlbumAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/assets/{assetId}": {
         parameters: {
             query?: never;
@@ -167,6 +253,23 @@ export interface paths {
         /** 获取单个资产详情 */
         get: operations["getAssetDetail"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/{assetId}/favorite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新资产收藏状态 */
+        put: operations["setFavoriteAsset"];
         post?: never;
         delete?: never;
         options?: never;
@@ -432,6 +535,28 @@ export interface components {
             items: components["schemas"]["AssetSummary"][];
             pageInfo: components["schemas"]["CursorPageInfo"];
         };
+        PlaceSummary: {
+            label: string;
+            count: number;
+            /** Format: date-time */
+            latestAt: string;
+            latestAsset: components["schemas"]["AssetSummary"];
+        };
+        PlacesResponse: {
+            /** Format: uuid */
+            libraryId: string;
+            items: components["schemas"]["PlaceSummary"][];
+        };
+        DuplicateCandidate: {
+            primary: components["schemas"]["AssetSummary"];
+            candidate: components["schemas"]["AssetSummary"];
+            exact: boolean;
+        };
+        DuplicatesResponse: {
+            /** Format: uuid */
+            libraryId: string;
+            items: components["schemas"]["DuplicateCandidate"][];
+        };
         SearchResponse: {
             /** Format: uuid */
             libraryId: string;
@@ -451,6 +576,27 @@ export interface components {
             backupStatus: string;
             captionPreview?: string;
             thumbnailToken?: string;
+        };
+        AlbumSummary: {
+            /** Format: uuid */
+            albumId: string;
+            slug: string;
+            displayName: string;
+            /** @enum {string} */
+            kind: "favorites" | "curated" | "duplicates-review";
+            assetCount: number;
+        };
+        AlbumsResponse: {
+            /** Format: uuid */
+            libraryId: string;
+            items: components["schemas"]["AlbumSummary"][];
+        };
+        AlbumDetailResponse: {
+            /** Format: uuid */
+            libraryId: string;
+            album: components["schemas"]["AlbumSummary"];
+            items: components["schemas"]["AssetSummary"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
         };
         DownloadGrant: {
             /** Format: uuid */
@@ -473,6 +619,22 @@ export interface components {
             /** @enum {string} */
             status: "queued" | "running" | "ready" | "failed";
         };
+        CreateAlbumRequest: {
+            /** Format: uuid */
+            libraryId: string;
+            displayName: string;
+        };
+        AddAlbumAssetRequest: {
+            /** Format: uuid */
+            libraryId: string;
+            /** Format: uuid */
+            assetId: string;
+        };
+        SetFavoriteRequest: {
+            /** Format: uuid */
+            libraryId: string;
+            favorite: boolean;
+        };
         ExportRequest: {
             /** Format: uuid */
             libraryId: string;
@@ -485,15 +647,31 @@ export interface components {
             /** Format: date */
             dateTo?: string;
         };
+        RecoveryPlan: {
+            assetCount: number;
+            objectCount: number;
+            backupVerifiedCount: number;
+            requiredMetadata: string[];
+            warnings?: string[];
+        };
         ExportJob: {
+            id: string;
             /** Format: uuid */
-            jobId: string;
+            libraryId: string;
             /** @enum {string} */
-            status: "queued" | "running" | "ready" | "failed";
+            scope: "library" | "album" | "date-range";
+            /** @enum {string} */
+            status: "ready" | "failed";
+            assetCount: number;
             /** Format: uri */
-            downloadUrl?: string;
+            archiveUrl?: string;
+            /** Format: uri */
+            redactedManifestUrl?: string;
             /** Format: date-time */
-            expiresAt?: string;
+            expiresAt: string;
+            /** Format: date-time */
+            createdAt: string;
+            recoveryPlan: components["schemas"]["RecoveryPlan"];
         };
         UpdateProviderSettingsRequest: {
             enabled?: boolean;
@@ -545,6 +723,7 @@ export interface components {
         SessionId: string;
         AssetId: string;
         ProviderName: string;
+        AlbumId: string;
         RunId: string;
         LibraryId: string;
     };
@@ -730,6 +909,11 @@ export interface operations {
                 libraryId: components["parameters"]["LibraryId"];
                 cursor?: string;
                 limit?: number;
+                dateFrom?: string;
+                dateTo?: string;
+                location?: string;
+                stage?: string;
+                backupStatus?: string;
             };
             header?: never;
             path?: never;
@@ -744,6 +928,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TimelineResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    listPlaceSummaries: {
+        parameters: {
+            query: {
+                libraryId: components["parameters"]["LibraryId"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 地点聚合结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacesResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    listDuplicateCandidates: {
+        parameters: {
+            query: {
+                libraryId: components["parameters"]["LibraryId"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 重复候选结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicatesResponse"];
                 };
             };
             default: components["responses"]["ErrorResponse"];
@@ -775,6 +1007,113 @@ export interface operations {
             default: components["responses"]["ErrorResponse"];
         };
     };
+    listAlbums: {
+        parameters: {
+            query: {
+                libraryId: components["parameters"]["LibraryId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 相册列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlbumsResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    createAlbum: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAlbumRequest"];
+            };
+        };
+        responses: {
+            /** @description 相册已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlbumSummary"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAlbumDetail: {
+        parameters: {
+            query: {
+                libraryId: components["parameters"]["LibraryId"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                albumId: components["parameters"]["AlbumId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 相册详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlbumDetailResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    addAlbumAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                albumId: components["parameters"]["AlbumId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddAlbumAssetRequest"];
+            };
+        };
+        responses: {
+            /** @description 相册已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status: string;
+                        /** Format: uuid */
+                        albumId: string;
+                        /** Format: uuid */
+                        assetId: string;
+                    };
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
     getAssetDetail: {
         parameters: {
             query: {
@@ -795,6 +1134,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssetDetail"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    setFavoriteAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assetId: components["parameters"]["AssetId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetFavoriteRequest"];
+            };
+        };
+        responses: {
+            /** @description 收藏状态已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status: string;
+                        /** Format: uuid */
+                        assetId: string;
+                        favorite: boolean;
+                        album?: components["schemas"]["AlbumSummary"];
+                    };
                 };
             };
             default: components["responses"]["ErrorResponse"];

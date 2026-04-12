@@ -193,6 +193,11 @@ func (s *Server) handleConfirmUpload(w http.ResponseWriter, r *http.Request) {
 	if s.enrich != nil {
 		_ = s.enrich.QueueAsset(r.Context(), result.Asset.ID)
 	}
+	if s.backup != nil {
+		if updated, backupErr := s.backup.CopyAsset(r.Context(), principal.LibraryID, result.Asset.ID); backupErr == nil {
+			result.Asset = updated
+		}
+	}
 
 	writeJSON(w, http.StatusAccepted, assetAcceptedResponse{
 		AssetID:         result.Asset.ID,

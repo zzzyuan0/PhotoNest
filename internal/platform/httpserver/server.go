@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/photonest/photonest/internal/backup"
 	"github.com/photonest/photonest/internal/discovery"
 	"github.com/photonest/photonest/internal/enrichment"
 	"github.com/photonest/photonest/internal/ingestion"
@@ -14,6 +15,7 @@ import (
 	"github.com/photonest/photonest/internal/platform/auth"
 	"github.com/photonest/photonest/internal/platform/config"
 	"github.com/photonest/photonest/internal/platform/health"
+	"github.com/photonest/photonest/internal/platform/telemetry"
 	providerai "github.com/photonest/photonest/internal/provider/ai"
 	"github.com/photonest/photonest/internal/provider/storage"
 )
@@ -26,6 +28,8 @@ type Server struct {
 	ingestion *ingestion.Service
 	discovery *discovery.Service
 	enrich    *enrichment.Service
+	backup    *backup.Service
+	telemetry *telemetry.Collector
 	mux       *http.ServeMux
 }
 
@@ -37,9 +41,11 @@ type Dependencies struct {
 	Ingestion  *ingestion.Service
 	Discovery  *discovery.Service
 	Enrichment *enrichment.Service
+	Backup     *backup.Service
 }
 
 func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Dependencies) (http.Handler, error) {
+	collector := telemetry.NewCollector()
 	authManager, err := auth.NewManager(cfg.Security)
 	if err != nil {
 		return nil, fmt.Errorf("create auth manager: %w", err)
@@ -79,9 +85,38 @@ func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Depe
 			DownloadTTL:         cfg.Security.DownloadCredentialTTL,
 			DebugRetention:      cfg.Security.DebugRetention,
 			RetainProviderDebug: true,
+			Telemetry:           collector,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("create enrichment service: %w", err)
+		}
+	}
+	if deps.Backup == nil && deps.Ingestion != nil && len(cfg.StorageProviders.Backup) > 0 {
+		backupProviders := make([]backup.ConfiguredProvider, 0, len(cfg.StorageProviders.Backup))
+		for _, providerCfg := range cfg.StorageProviders.Backup {
+			provider, err := storage.NewProvider(context.Background(), providerCfg)
+			if err != nil {
+				return nil, fmt.Errorf("create backup storage provider %s: %w", providerCfg.Name, err)
+			}
+			backupProviders = append(backupProviders, backup.ConfiguredProvider{
+				Provider:    provider,
+				Name:        providerCfg.Name,
+				BucketName:  providerCfg.Bucket,
+				Endpoint:    providerCfg.Endpoint,
+				KeyPrefix:   providerCfg.KeyPrefix,
+				PrivateRead: providerCfg.PrivateRead,
+			})
+		}
+		deps.Backup, err = backup.NewService(backup.ServiceConfig{
+			Repository:      deps.Ingestion.Repository(),
+			PrimaryStorage:  deps.Ingestion.Provider(),
+			ArtifactStore:   deps.Ingestion.Provider(),
+			BackupProviders: backupProviders,
+			DownloadTTL:     cfg.Security.DownloadCredentialTTL,
+			Telemetry:       collector,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create backup service: %w", err)
 		}
 	}
 
@@ -89,10 +124,12 @@ func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Depe
 		cfg:       cfg,
 		checker:   checker,
 		auth:      authManager,
-		audit:     audit.NewLogger(),
+		audit:     audit.NewLogger(collector),
 		ingestion: deps.Ingestion,
 		discovery: deps.Discovery,
 		enrich:    deps.Enrichment,
+		backup:    deps.Backup,
+		telemetry: collector,
 		mux:       http.NewServeMux(),
 	}
 
@@ -139,16 +176,60 @@ func (s *Server) routes() {
 		Permission:     auth.PermissionLibraryRead,
 		RequireLibrary: true,
 	}, s.handleTimeline))
+	s.mux.HandleFunc("GET /api/v1/discovery/places", s.secure(routeSpec{
+		Operation:      "listPlaceSummaries",
+		Permission:     auth.PermissionLibraryRead,
+		RequireLibrary: true,
+	}, s.handlePlaces))
+	s.mux.HandleFunc("GET /api/v1/discovery/duplicates", s.secure(routeSpec{
+		Operation:      "listDuplicateCandidates",
+		Permission:     auth.PermissionLibraryRead,
+		RequireLibrary: true,
+	}, s.handleDuplicates))
 	s.mux.HandleFunc("GET /api/v1/discovery/search", s.secure(routeSpec{
 		Operation:      "searchAssets",
 		Permission:     auth.PermissionLibraryRead,
 		RequireLibrary: true,
 	}, s.handleSearch))
+	s.mux.HandleFunc("GET /api/v1/albums", s.secure(routeSpec{
+		Operation:      "listAlbums",
+		Permission:     auth.PermissionLibraryRead,
+		RequireLibrary: true,
+	}, s.handleAlbums))
+	s.mux.HandleFunc("POST /api/v1/albums", s.secure(routeSpec{
+		Operation:      "createAlbum",
+		Permission:     auth.PermissionLibraryWrite,
+		RequireCSRF:    true,
+		RequireLibrary: true,
+		AuditAction:    "album.create",
+		TargetType:     "album",
+	}, s.handleCreateAlbum))
+	s.mux.HandleFunc("GET /api/v1/albums/{albumId}", s.secure(routeSpec{
+		Operation:      "getAlbumDetail",
+		Permission:     auth.PermissionLibraryRead,
+		RequireLibrary: true,
+	}, s.handleAlbumDetail))
+	s.mux.HandleFunc("POST /api/v1/albums/{albumId}/assets", s.secure(routeSpec{
+		Operation:      "addAlbumAsset",
+		Permission:     auth.PermissionLibraryWrite,
+		RequireCSRF:    true,
+		RequireLibrary: true,
+		AuditAction:    "album.asset.add",
+		TargetType:     "album",
+	}, s.handleAddAssetToAlbum))
 	s.mux.HandleFunc("GET /api/v1/assets/{assetId}", s.secure(routeSpec{
 		Operation:      "getAssetDetail",
 		Permission:     auth.PermissionLibraryRead,
 		RequireLibrary: true,
 	}, s.handleAssetDetail))
+	s.mux.HandleFunc("PUT /api/v1/assets/{assetId}/favorite", s.secure(routeSpec{
+		Operation:      "setFavoriteAsset",
+		Permission:     auth.PermissionLibraryWrite,
+		RequireCSRF:    true,
+		RequireLibrary: true,
+		AuditAction:    "asset.favorite.update",
+		TargetType:     "asset",
+	}, s.handleSetFavorite))
 	s.mux.HandleFunc("POST /api/v1/assets/{assetId}/download", s.secure(routeSpec{
 		Operation:      "requestAssetDownload",
 		Permission:     auth.PermissionAssetDownload,
@@ -172,7 +253,7 @@ func (s *Server) routes() {
 		RequireLibrary: true,
 		AuditAction:    "library.export",
 		TargetType:     "library",
-	}, s.notImplemented("createExportJob")))
+	}, s.handleCreateExport))
 	s.mux.HandleFunc("PUT /api/v1/settings/providers/{providerName}", s.secure(routeSpec{
 		Operation:     "updateProviderSettings",
 		Permission:    auth.PermissionManageProvider,
@@ -200,8 +281,9 @@ func (s *Server) routes() {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	results := s.checker.Check(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status": s.healthStatus(results),
-		"checks": results,
+		"status":    s.healthStatus(results),
+		"checks":    results,
+		"telemetry": s.telemetry.Snapshots(),
 	})
 }
 

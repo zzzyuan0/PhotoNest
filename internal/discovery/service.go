@@ -29,6 +29,16 @@ type Repository interface {
 	GetLibraryPolicy(ctx context.Context, libraryID string) (library.Policy, error)
 }
 
+type albumRepository interface {
+	ListAlbums(ctx context.Context, libraryID string) ([]Album, error)
+	GetAlbum(ctx context.Context, albumID string) (Album, error)
+	CreateAlbum(ctx context.Context, album Album) (Album, error)
+	EnsureSystemAlbum(ctx context.Context, libraryID string, kind AlbumKind) (Album, error)
+	AddAssetToAlbum(ctx context.Context, albumID string, assetID string) error
+	RemoveAssetFromAlbum(ctx context.Context, albumID string, assetID string) error
+	ListAssetIDsByAlbum(ctx context.Context, albumID string) ([]string, error)
+}
+
 type ServiceConfig struct {
 	Repository  Repository
 	Storage     storage.Provider
@@ -39,6 +49,7 @@ type ServiceConfig struct {
 
 type Service struct {
 	repository  Repository
+	albums      albumRepository
 	storage     storage.Provider
 	downloadTTL time.Duration
 	tokenKey    string
@@ -90,6 +101,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 	return &Service{
 		repository:  cfg.Repository,
+		albums:      resolveAlbumRepository(cfg.Repository),
 		storage:     cfg.Storage,
 		downloadTTL: cfg.DownloadTTL,
 		tokenKey:    cfg.TokenKey,
@@ -98,6 +110,10 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 }
 
 func (s *Service) ListTimeline(ctx context.Context, libraryID string, limit int) ([]Summary, error) {
+	return s.ListTimelineWithFilters(ctx, libraryID, TimelineQuery{Limit: limit})
+}
+
+func (s *Service) ListTimelineWithFilters(ctx context.Context, libraryID string, query TimelineQuery) ([]Summary, error) {
 	records, err := s.repository.ListAssetsByLibrary(ctx, libraryID)
 	if err != nil {
 		return nil, err
@@ -111,15 +127,24 @@ func (s *Service) ListTimeline(ctx context.Context, libraryID string, limit int)
 		return bestTimeline(records[i]).After(bestTimeline(records[j]))
 	})
 
+	filtered := make([]asset.Asset, 0, len(records))
+	for _, record := range records {
+		if !matchesTimelineQuery(record, policy, query) {
+			continue
+		}
+		filtered = append(filtered, record)
+	}
+
+	limit := query.Limit
 	if limit <= 0 {
 		limit = defaultLimit
 	}
-	if len(records) > limit {
-		records = records[:limit]
+	if len(filtered) > limit {
+		filtered = filtered[:limit]
 	}
 
-	items := make([]Summary, 0, len(records))
-	for _, record := range records {
+	items := make([]Summary, 0, len(filtered))
+	for _, record := range filtered {
 		summary, err := s.summaryForAsset(ctx, record, policy)
 		if err != nil {
 			return nil, err
@@ -186,6 +211,231 @@ func (s *Service) Search(ctx context.Context, libraryID string, rawQuery string,
 		summaries = append(summaries, item.Summary)
 	}
 	return summaries, nil
+}
+
+func (s *Service) ListPlaces(ctx context.Context, libraryID string, limit int) ([]PlaceSummary, error) {
+	records, err := s.repository.ListAssetsByLibrary(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	policy, err := s.repository.GetLibraryPolicy(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	if !policy.ShouldRunGPS() {
+		return nil, nil
+	}
+
+	grouped := map[string]*PlaceSummary{}
+	for _, record := range records {
+		label := strings.TrimSpace(record.LocationLabel)
+		if label == "" {
+			continue
+		}
+		summary, err := s.summaryForAsset(ctx, record, policy)
+		if err != nil {
+			return nil, err
+		}
+		bestAt := bestTimeline(record)
+		item, ok := grouped[label]
+		if !ok {
+			grouped[label] = &PlaceSummary{
+				Label:       label,
+				Count:       1,
+				LatestAsset: summary,
+				LatestAt:    bestAt,
+			}
+			continue
+		}
+		item.Count++
+		if bestAt.After(item.LatestAt) {
+			item.LatestAsset = summary
+			item.LatestAt = bestAt
+		}
+	}
+
+	places := make([]PlaceSummary, 0, len(grouped))
+	for _, item := range grouped {
+		places = append(places, *item)
+	}
+	sort.SliceStable(places, func(i int, j int) bool {
+		if places[i].Count == places[j].Count {
+			return places[i].LatestAt.After(places[j].LatestAt)
+		}
+		return places[i].Count > places[j].Count
+	})
+	if limit <= 0 {
+		limit = defaultLimit
+	}
+	if len(places) > limit {
+		places = places[:limit]
+	}
+	return places, nil
+}
+
+func (s *Service) ListDuplicateCandidates(ctx context.Context, libraryID string, limit int) ([]DuplicateCandidate, error) {
+	records, err := s.repository.ListAssetsByLibrary(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	policy, err := s.repository.GetLibraryPolicy(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+
+	byID := make(map[string]asset.Asset, len(records))
+	for _, record := range records {
+		byID[record.ID] = record
+	}
+
+	items := make([]DuplicateCandidate, 0)
+	for _, record := range records {
+		primaryID := strings.TrimSpace(record.DuplicateCandidateOf)
+		if primaryID == "" {
+			continue
+		}
+		primary, ok := byID[primaryID]
+		if !ok {
+			continue
+		}
+		primarySummary, err := s.summaryForAsset(ctx, primary, policy)
+		if err != nil {
+			return nil, err
+		}
+		candidateSummary, err := s.summaryForAsset(ctx, record, policy)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, DuplicateCandidate{
+			Primary:   primarySummary,
+			Candidate: candidateSummary,
+			Exact:     record.IsDuplicateExact,
+		})
+	}
+
+	sort.SliceStable(items, func(i int, j int) bool {
+		return bestTimeline(items[i].Candidate.Asset).After(bestTimeline(items[j].Candidate.Asset))
+	})
+	if limit <= 0 {
+		limit = defaultLimit
+	}
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	return items, nil
+}
+
+func (s *Service) ListAlbums(ctx context.Context, libraryID string) ([]Album, error) {
+	if s.albums == nil {
+		return nil, nil
+	}
+	albums, err := s.albums.ListAlbums(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	sort.SliceStable(albums, func(i int, j int) bool {
+		if albums[i].Kind == albums[j].Kind {
+			return albums[i].CreatedAt.Before(albums[j].CreatedAt)
+		}
+		return albumKindRank(albums[i].Kind) < albumKindRank(albums[j].Kind)
+	})
+	return albums, nil
+}
+
+func (s *Service) CreateAlbum(ctx context.Context, libraryID string, displayName string) (Album, error) {
+	if s.albums == nil {
+		return Album{}, fmt.Errorf("album repository is not configured")
+	}
+	trimmed := strings.TrimSpace(displayName)
+	if trimmed == "" {
+		return Album{}, fmt.Errorf("album display name is required")
+	}
+	return s.albums.CreateAlbum(ctx, Album{
+		LibraryID:   libraryID,
+		Slug:        slugify(trimmed),
+		DisplayName: trimmed,
+		Kind:        AlbumKindCurated,
+		CreatedAt:   s.now().UTC(),
+	})
+}
+
+func (s *Service) ListAlbumAssets(ctx context.Context, libraryID string, albumID string, limit int) (Album, []Summary, error) {
+	if s.albums == nil {
+		return Album{}, nil, fmt.Errorf("album repository is not configured")
+	}
+	album, err := s.albums.GetAlbum(ctx, albumID)
+	if err != nil {
+		return Album{}, nil, err
+	}
+	if !strings.EqualFold(strings.TrimSpace(album.LibraryID), strings.TrimSpace(libraryID)) {
+		return Album{}, nil, fmt.Errorf("album does not belong to library")
+	}
+	policy, err := s.repository.GetLibraryPolicy(ctx, libraryID)
+	if err != nil {
+		return Album{}, nil, err
+	}
+	assetIDs, err := s.albums.ListAssetIDsByAlbum(ctx, albumID)
+	if err != nil {
+		return Album{}, nil, err
+	}
+	items := make([]Summary, 0, len(assetIDs))
+	for _, assetID := range assetIDs {
+		record, err := s.repository.GetAsset(ctx, assetID)
+		if err != nil {
+			return Album{}, nil, err
+		}
+		summary, err := s.summaryForAsset(ctx, record, policy)
+		if err != nil {
+			return Album{}, nil, err
+		}
+		items = append(items, summary)
+	}
+	sort.SliceStable(items, func(i int, j int) bool {
+		return bestTimeline(items[i].Asset).After(bestTimeline(items[j].Asset))
+	})
+	if limit <= 0 {
+		limit = defaultLimit
+	}
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	album.AssetCount = len(assetIDs)
+	return album, items, nil
+}
+
+func (s *Service) AddAssetToAlbum(ctx context.Context, libraryID string, albumID string, assetID string) error {
+	if s.albums == nil {
+		return fmt.Errorf("album repository is not configured")
+	}
+	record, err := s.repository.GetAsset(ctx, assetID)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(strings.TrimSpace(record.LibraryID), strings.TrimSpace(libraryID)) {
+		return fmt.Errorf("asset does not belong to library")
+	}
+	return s.albums.AddAssetToAlbum(ctx, albumID, assetID)
+}
+
+func (s *Service) SetFavorite(ctx context.Context, libraryID string, assetID string, favorite bool) (Album, error) {
+	if s.albums == nil {
+		return Album{}, fmt.Errorf("album repository is not configured")
+	}
+	record, err := s.repository.GetAsset(ctx, assetID)
+	if err != nil {
+		return Album{}, err
+	}
+	if !strings.EqualFold(strings.TrimSpace(record.LibraryID), strings.TrimSpace(libraryID)) {
+		return Album{}, fmt.Errorf("asset does not belong to library")
+	}
+	album, err := s.albums.EnsureSystemAlbum(ctx, libraryID, AlbumKindFavorites)
+	if err != nil {
+		return Album{}, err
+	}
+	if favorite {
+		return album, s.albums.AddAssetToAlbum(ctx, album.ID, assetID)
+	}
+	return album, s.albums.RemoveAssetFromAlbum(ctx, album.ID, assetID)
 }
 
 func (s *Service) GetAssetDetail(ctx context.Context, libraryID string, assetID string) (Detail, error) {
@@ -330,7 +580,11 @@ func matchAsset(record asset.Asset, policy library.Policy, query SearchQuery, qu
 	}
 
 	score := 0.0
-	textSignals := []string{record.OriginalFilename, strings.Join(record.Tags, " ")}
+	textSignals := []string{
+		record.OriginalFilename,
+		strings.Join(record.Tags, " "),
+		record.SearchDocument,
+	}
 	if policy.CaptionVisiblePreview() {
 		textSignals = append(textSignals, record.CaptionText)
 	}
@@ -349,8 +603,12 @@ func matchAsset(record asset.Asset, policy library.Policy, query SearchQuery, qu
 		}
 	}
 
-	if policy.ShouldRunEmbedding() && len(record.Embedding) > 0 {
-		score += ai.CosineSimilarity(queryEmbedding, record.Embedding)
+	searchEmbedding := record.SearchEmbedding
+	if len(searchEmbedding) == 0 {
+		searchEmbedding = record.Embedding
+	}
+	if policy.ShouldRunEmbedding() && len(searchEmbedding) > 0 {
+		score += ai.CosineSimilarity(queryEmbedding, searchEmbedding)
 	}
 	if score <= 0 {
 		return 0, false
@@ -371,4 +629,52 @@ func bestTimeline(record asset.Asset) time.Time {
 
 func containsFold(value string, target string) bool {
 	return strings.Contains(strings.ToLower(strings.TrimSpace(value)), strings.ToLower(strings.TrimSpace(target)))
+}
+
+func resolveAlbumRepository(repository Repository) albumRepository {
+	repo, _ := repository.(albumRepository)
+	return repo
+}
+
+func matchesTimelineQuery(record asset.Asset, policy library.Policy, query TimelineQuery) bool {
+	if query.Stage != "" && !strings.EqualFold(query.Stage, string(record.ProcessingStage)) {
+		return false
+	}
+	if query.BackupStatus != "" && !strings.EqualFold(query.BackupStatus, record.BackupStatus) {
+		return false
+	}
+	if query.Location != "" {
+		if !policy.ShouldRunGPS() || !containsFold(record.LocationLabel, query.Location) {
+			return false
+		}
+	}
+	bestAt := bestTimeline(record)
+	if query.DateFrom != nil && bestAt.Before(query.DateFrom.UTC()) {
+		return false
+	}
+	if query.DateTo != nil && bestAt.After(query.DateTo.UTC()) {
+		return false
+	}
+	return true
+}
+
+func slugify(value string) string {
+	tokens := ai.KeywordTokens(value)
+	if len(tokens) == 0 {
+		return "album"
+	}
+	return strings.Join(tokens, "-")
+}
+
+func albumKindRank(kind AlbumKind) int {
+	switch kind {
+	case AlbumKindFavorites:
+		return 0
+	case AlbumKindCurated:
+		return 1
+	case AlbumKindDuplicatesReview:
+		return 2
+	default:
+		return 3
+	}
 }

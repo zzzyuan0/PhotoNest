@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"log"
 	"time"
+
+	"github.com/photonest/photonest/internal/platform/telemetry"
 )
 
 type Result string
@@ -34,12 +36,18 @@ type Event struct {
 }
 
 type Logger struct {
-	now func() time.Time
+	now      func() time.Time
+	recorder telemetry.Recorder
 }
 
-func NewLogger() *Logger {
+func NewLogger(recorders ...telemetry.Recorder) *Logger {
+	var recorder telemetry.Recorder
+	if len(recorders) > 0 {
+		recorder = recorders[0]
+	}
 	return &Logger{
-		now: time.Now,
+		now:      time.Now,
+		recorder: recorder,
 	}
 }
 
@@ -52,6 +60,21 @@ func (l *Logger) Record(_ context.Context, event Event) {
 	if err != nil {
 		log.Printf("audit marshal error: %v", err)
 		return
+	}
+
+	if l.recorder != nil && (event.Result == ResultDenied || event.Result == ResultInvalid || event.Result == ResultError) {
+		l.recorder.Record(telemetry.Snapshot{
+			Metric: "audit.anomaly",
+			Labels: map[string]string{
+				"action": string(event.Action),
+				"result": string(event.Result),
+			},
+			Data: map[string]any{
+				"path":      event.Path,
+				"method":    event.Method,
+				"libraryId": event.LibraryID,
+			},
+		})
 	}
 
 	log.Printf("audit %s", payload)

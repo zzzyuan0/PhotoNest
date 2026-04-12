@@ -16,6 +16,7 @@ import (
 	"github.com/photonest/photonest/internal/ingestion"
 	"github.com/photonest/photonest/internal/library"
 	"github.com/photonest/photonest/internal/platform/config"
+	"github.com/photonest/photonest/internal/platform/telemetry"
 	providerai "github.com/photonest/photonest/internal/provider/ai"
 	"github.com/photonest/photonest/internal/provider/storage"
 )
@@ -248,6 +249,130 @@ func TestServiceHonorsPrivacyPolicyForSensitiveStages(t *testing.T) {
 	}
 }
 
+func TestDiscoverySupportsPlacesAlbumsAndDuplicates(t *testing.T) {
+	ctx := context.Background()
+	_, provider, ingestionService, enrichmentService, discoveryService := newTestServices(t, []providerai.Provider{
+		providerai.NewDeterministicProvider("local-ai", providerai.BoundaryLocalSidecar, nil, "test-model"),
+	})
+
+	first := uploadAssetWithPayload(t, ctx, ingestionService, provider, "guangzhou-river-night.png", samplePNG(t), map[string]string{
+		"captured_at":   "2024-08-21T19:45:00Z",
+		"gps_latitude":  "23.1291",
+		"gps_longitude": "113.2644",
+	})
+	second := uploadAssetWithPayload(t, ctx, ingestionService, provider, "guangzhou-river-night-edit.png", sampleSimilarPNG(t), map[string]string{
+		"captured_at":   "2024-08-21T19:46:00Z",
+		"gps_latitude":  "23.1291",
+		"gps_longitude": "113.2644",
+	})
+
+	if err := enrichmentService.QueueAsset(ctx, first.Asset.ID); err != nil {
+		t.Fatalf("queue first asset: %v", err)
+	}
+	if err := enrichmentService.QueueAsset(ctx, second.Asset.ID); err != nil {
+		t.Fatalf("queue second asset: %v", err)
+	}
+	if _, err := enrichmentService.RunPending(ctx); err != nil {
+		t.Fatalf("run pending: %v", err)
+	}
+
+	places, err := discoveryService.ListPlaces(ctx, testLibraryID, 10)
+	if err != nil {
+		t.Fatalf("list places: %v", err)
+	}
+	if len(places) == 0 || places[0].Label == "" {
+		t.Fatalf("expected location groups to be available, got %+v", places)
+	}
+
+	duplicates, err := discoveryService.ListDuplicateCandidates(ctx, testLibraryID, 10)
+	if err != nil {
+		t.Fatalf("list duplicates: %v", err)
+	}
+	if len(duplicates) == 0 {
+		t.Fatal("expected at least one duplicate candidate pair")
+	}
+
+	album, err := discoveryService.CreateAlbum(ctx, testLibraryID, "本周精选")
+	if err != nil {
+		t.Fatalf("create album: %v", err)
+	}
+	if err := discoveryService.AddAssetToAlbum(ctx, testLibraryID, album.ID, first.Asset.ID); err != nil {
+		t.Fatalf("add asset to album: %v", err)
+	}
+	selectedAlbum, items, err := discoveryService.ListAlbumAssets(ctx, testLibraryID, album.ID, 10)
+	if err != nil {
+		t.Fatalf("list album assets: %v", err)
+	}
+	if selectedAlbum.DisplayName != "本周精选" || len(items) != 1 {
+		t.Fatalf("unexpected album payload %+v / %+v", selectedAlbum, items)
+	}
+
+	favorites, err := discoveryService.SetFavorite(ctx, testLibraryID, first.Asset.ID, true)
+	if err != nil {
+		t.Fatalf("set favorite: %v", err)
+	}
+	if favorites.Kind != discovery.AlbumKindFavorites {
+		t.Fatalf("expected favorites system album, got %+v", favorites)
+	}
+	_, favoriteItems, err := discoveryService.ListAlbumAssets(ctx, testLibraryID, favorites.ID, 10)
+	if err != nil {
+		t.Fatalf("list favorite album assets: %v", err)
+	}
+	if len(favoriteItems) != 1 || favoriteItems[0].Asset.ID != first.Asset.ID {
+		t.Fatalf("expected favorite album to contain the selected asset, got %+v", favoriteItems)
+	}
+}
+
+func TestTelemetryCapturesProviderHealthAndIndexProgress(t *testing.T) {
+	ctx := context.Background()
+	collector := telemetry.NewCollector()
+	store := ingestion.NewMemoryStore()
+	provider := storage.NewMemoryProvider("primary-memory", "photonest-main", "libraries/main")
+
+	ingestionService, err := ingestion.NewService(ingestion.ServiceConfig{
+		Repository: store,
+		Provider:   provider,
+		ProviderConfig: config.ObjectStorageProviderConfig{
+			Name:             "primary-memory",
+			Bucket:           "photonest-main",
+			KeyPrefix:        "libraries/main",
+			UploadPresignTTL: storage.MaxUploadTTL,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new ingestion service: %v", err)
+	}
+	enrichmentService, err := NewService(ServiceConfig{
+		Repository:          store,
+		Storage:             provider,
+		AIProviders:         []providerai.Provider{providerai.NewDeterministicProvider("local-ai", providerai.BoundaryLocalSidecar, nil, "test-model")},
+		Queue:               NewMemoryQueue(),
+		DownloadTTL:         5 * time.Minute,
+		DebugRetention:      24 * time.Hour,
+		RetainProviderDebug: true,
+		Telemetry:           collector,
+	})
+	if err != nil {
+		t.Fatalf("new enrichment service: %v", err)
+	}
+
+	accepted := uploadAsset(t, ctx, ingestionService, provider, "telemetry-sample.png", nil)
+	if err := enrichmentService.QueueAsset(ctx, accepted.Asset.ID); err != nil {
+		t.Fatalf("queue asset: %v", err)
+	}
+	if _, err := enrichmentService.RunPending(ctx); err != nil {
+		t.Fatalf("run pending: %v", err)
+	}
+
+	snapshots := collector.Snapshots()
+	if !hasMetric(snapshots, "provider.health") {
+		t.Fatalf("expected provider.health snapshot, got %+v", snapshots)
+	}
+	if !hasMetric(snapshots, "index.progress") {
+		t.Fatalf("expected index.progress snapshot, got %+v", snapshots)
+	}
+}
+
 func newTestServices(t *testing.T, providers []providerai.Provider) (*ingestion.MemoryStore, storage.Provider, *ingestion.Service, *Service, *discovery.Service) {
 	t.Helper()
 
@@ -300,7 +425,20 @@ func uploadAsset(
 ) ingestion.ConfirmResult {
 	t.Helper()
 
-	payload := samplePNG(t)
+	return uploadAssetWithPayload(t, ctx, service, provider, fileName, samplePNG(t), extraMetadata)
+}
+
+func uploadAssetWithPayload(
+	t *testing.T,
+	ctx context.Context,
+	service *ingestion.Service,
+	provider storage.Provider,
+	fileName string,
+	payload []byte,
+	extraMetadata map[string]string,
+) ingestion.ConfirmResult {
+	t.Helper()
+
 	contentSHA := ingestion.SHA256Hex(payload)
 
 	session, err := service.CreateSession(ctx, ingestion.CreateSessionInput{
@@ -371,6 +509,27 @@ func samplePNG(t *testing.T) []byte {
 	return buffer.Bytes()
 }
 
+func sampleSimilarPNG(t *testing.T) []byte {
+	t.Helper()
+
+	img := image.NewRGBA(image.Rect(0, 0, 48, 48))
+	for y := 0; y < 48; y++ {
+		for x := 0; x < 48; x++ {
+			colorValue := color.RGBA{R: 0x2d, G: 0x69 + uint8((x+y)%4), B: 0xa0, A: 255}
+			if x > 30 && y > 30 {
+				colorValue = color.RGBA{R: 0x3b, G: 0x88, B: 0xb2, A: 255}
+			}
+			img.Set(x, y, colorValue)
+		}
+	}
+
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, img); err != nil {
+		t.Fatalf("encode similar png: %v", err)
+	}
+	return buffer.Bytes()
+}
+
 func mapFromUploadHeaders(headers map[string]string) map[string]string {
 	metadata := map[string]string{}
 	for name, value := range headers {
@@ -388,6 +547,15 @@ func mapFromUploadHeaders(headers map[string]string) map[string]string {
 func contains(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func hasMetric(snapshots []telemetry.Snapshot, metric string) bool {
+	for _, snapshot := range snapshots {
+		if snapshot.Metric == metric {
 			return true
 		}
 	}

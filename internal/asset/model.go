@@ -82,6 +82,9 @@ type Asset struct {
 	OCRText               string
 	Tags                  []string
 	Embedding             []float32
+	SearchDocument        string
+	SearchEmbedding       []float32
+	IndexedAt             *time.Time
 	ProcessingStage       ProcessingStage
 	BackupStatus          string
 	IsDuplicateExact      bool

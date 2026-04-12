@@ -77,6 +77,10 @@ CREATE TABLE assets (
   location_label TEXT,
   caption_text TEXT,
   ocr_text TEXT,
+  search_document TEXT NOT NULL DEFAULT '',
+  search_tsv TSVECTOR GENERATED ALWAYS AS (to_tsvector('simple', search_document)) STORED,
+  search_embedding VECTOR(24),
+  indexed_at TIMESTAMPTZ,
   embedding VECTOR(1536),
   is_duplicate_exact BOOLEAN NOT NULL DEFAULT FALSE,
   duplicate_candidate_of UUID REFERENCES assets(id),
@@ -89,6 +93,8 @@ CREATE INDEX assets_timeline_idx ON assets (library_id, timeline_at DESC, import
 CREATE INDEX assets_processing_idx ON assets (processing_stage, backup_status);
 CREATE INDEX assets_caption_trgm_idx ON assets USING gin (caption_text gin_trgm_ops);
 CREATE INDEX assets_ocr_trgm_idx ON assets USING gin (ocr_text gin_trgm_ops);
+CREATE INDEX assets_search_tsv_idx ON assets USING gin (search_tsv);
+CREATE INDEX assets_search_embedding_idx ON assets USING ivfflat (search_embedding vector_cosine_ops) WITH (lists = 100);
 
 CREATE TABLE object_references (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

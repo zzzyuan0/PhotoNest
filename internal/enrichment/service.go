@@ -12,6 +12,7 @@ import (
 	"github.com/photonest/photonest/internal/asset"
 	"github.com/photonest/photonest/internal/job"
 	"github.com/photonest/photonest/internal/library"
+	"github.com/photonest/photonest/internal/platform/telemetry"
 	"github.com/photonest/photonest/internal/provider/ai"
 	"github.com/photonest/photonest/internal/provider/storage"
 )
@@ -38,6 +39,7 @@ type ServiceConfig struct {
 	DownloadTTL         time.Duration
 	DebugRetention      time.Duration
 	RetainProviderDebug bool
+	Telemetry           telemetry.Recorder
 	Now                 func() time.Time
 }
 
@@ -50,6 +52,7 @@ type Service struct {
 	downloadTTL         time.Duration
 	debugRetention      time.Duration
 	retainProviderDebug bool
+	telemetry           telemetry.Recorder
 	now                 func() time.Time
 
 	mu           sync.Mutex
@@ -101,6 +104,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		downloadTTL:         cfg.DownloadTTL,
 		debugRetention:      cfg.DebugRetention,
 		retainProviderDebug: cfg.RetainProviderDebug,
+		telemetry:           cfg.Telemetry,
 		now:                 cfg.Now,
 		failureCount:        map[string]int{},
 	}, nil
@@ -242,6 +246,7 @@ func (s *Service) finishStage(ctx context.Context, record asset.Asset, run asset
 	if strings.TrimSpace(run.ProviderName) != "" {
 		s.trackProviderOutcome(run.ProviderName, result.err == nil)
 	}
+	s.recordStageTelemetry(record, run, result)
 	if err := s.syncAssetState(ctx, record.ID); err != nil {
 		return err
 	}
@@ -446,12 +451,22 @@ func (s *Service) runIndexingStage(_ context.Context, record *asset.Asset) stage
 	} else if record.TimelineAt.IsZero() {
 		record.TimelineAt = record.ImportedAt.UTC()
 	}
+	record.SearchDocument = buildSearchDocument(*record)
+	if len(record.Embedding) > 0 {
+		record.SearchEmbedding = slices.Clone(record.Embedding)
+	} else {
+		record.SearchEmbedding = ai.HashEmbeddingText(record.SearchDocument, 24)
+	}
+	indexedAt := s.now().UTC()
+	record.IndexedAt = &indexedAt
 
 	return stageResult{
 		status: asset.RecognitionStatusSucceeded,
 		debugPayload: map[string]any{
-			"stage": string(asset.RecognitionStageIndexing),
-			"tags":  append([]string(nil), record.Tags...),
+			"stage":          string(asset.RecognitionStageIndexing),
+			"tags":           append([]string(nil), record.Tags...),
+			"searchDocument": ai.TextPreview(record.SearchDocument, 120),
+			"indexedAt":      indexedAt.Format(time.RFC3339),
 		},
 	}
 }
@@ -568,6 +583,17 @@ func (s *Service) newAIRequest(ctx context.Context, record asset.Asset, capabili
 	for name, provider := range s.providers {
 		status, err := provider.Health(ctx)
 		healthy := err == nil && status.Healthy
+		s.recordTelemetry(telemetry.Snapshot{
+			Metric: "provider.health",
+			Labels: map[string]string{
+				"provider":   name,
+				"capability": string(capability),
+			},
+			Data: map[string]any{
+				"healthy": healthy,
+				"message": status.Message,
+			},
+		})
 		candidates = append(candidates, ai.Candidate{
 			Name:         name,
 			Boundary:     provider.Boundary(),
@@ -714,6 +740,70 @@ func formatOptionalTime(value *time.Time) string {
 		return ""
 	}
 	return value.UTC().Format(time.RFC3339)
+}
+
+func buildSearchDocument(record asset.Asset) string {
+	parts := []string{
+		record.OriginalFilename,
+		record.CaptionText,
+		record.OCRText,
+		record.LocationLabel,
+		strings.Join(record.Tags, " "),
+	}
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			filtered = append(filtered, trimmed)
+		}
+	}
+	return strings.Join(filtered, "\n")
+}
+
+func (s *Service) recordStageTelemetry(record asset.Asset, run asset.RecognitionRun, result stageResult) {
+	labels := map[string]string{
+		"asset_id": string(record.ID),
+		"stage":    string(run.Stage),
+	}
+	if run.ProviderName != "" {
+		labels["provider"] = run.ProviderName
+	}
+	s.recordTelemetry(telemetry.Snapshot{
+		Metric: "enrichment.stage",
+		Labels: labels,
+		Data: map[string]any{
+			"status":           string(result.status),
+			"processing_stage": string(record.ProcessingStage),
+			"has_error":        result.err != nil,
+		},
+	})
+	if result.err != nil {
+		s.recordTelemetry(telemetry.Snapshot{
+			Metric: "job.failure",
+			Labels: labels,
+			Data: map[string]any{
+				"error": result.err.Error(),
+			},
+		})
+	}
+	if run.Stage == asset.RecognitionStageIndexing {
+		s.recordTelemetry(telemetry.Snapshot{
+			Metric: "index.progress",
+			Labels: map[string]string{
+				"asset_id": record.ID,
+			},
+			Data: map[string]any{
+				"indexed":     record.IndexedAt != nil,
+				"search_terms": len(record.Tags),
+			},
+		})
+	}
+}
+
+func (s *Service) recordTelemetry(snapshot telemetry.Snapshot) {
+	if s.telemetry == nil {
+		return
+	}
+	s.telemetry.Record(snapshot)
 }
 
 type originalInput struct {

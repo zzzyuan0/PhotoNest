@@ -94,6 +94,31 @@ func TestCookieProtectedWriteRequiresCSRFToken(t *testing.T) {
 	}
 }
 
+func TestFavoriteWriteRequiresCSRFToken(t *testing.T) {
+	handler := newTestHandler(t)
+
+	loginRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"username":"admin","password":"secret-password"}`))
+	loginRequest.Header.Set("Content-Type", "application/json")
+	loginRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(loginRecorder, loginRequest)
+
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/assets/11111111-1111-1111-1111-111111111111/favorite", strings.NewReader(`{"libraryId":"11111111-1111-1111-1111-111111111111","favorite":true}`))
+	request.Header.Set("Content-Type", "application/json")
+	for _, cookie := range loginRecorder.Result().Cookies() {
+		request.AddCookie(cookie)
+	}
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", recorder.Code)
+	}
+	if !strings.Contains(recorder.Body.String(), "csrf") {
+		t.Fatalf("expected csrf error, got %s", recorder.Body.String())
+	}
+}
+
 func TestExportRequiresRecentAuthentication(t *testing.T) {
 	cfg := newTestConfig()
 	handler, err := New(cfg, health.Checker{})
@@ -132,6 +157,27 @@ func TestExportRequiresRecentAuthentication(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), "recent_auth_required") {
 		t.Fatalf("expected recent auth error, got %s", recorder.Body.String())
+	}
+}
+
+func TestHealthExposesAuditTelemetrySnapshots(t *testing.T) {
+	handler := newTestHandler(t)
+
+	deniedRequest := httptest.NewRequest(http.MethodGet, "/api/v1/discovery/timeline?libraryId=11111111-1111-1111-1111-111111111111", nil)
+	deniedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(deniedRecorder, deniedRequest)
+	if deniedRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", deniedRecorder.Code)
+	}
+
+	healthRequest := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
+	healthRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(healthRecorder, healthRequest)
+	if healthRecorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", healthRecorder.Code)
+	}
+	if !strings.Contains(healthRecorder.Body.String(), "audit.anomaly") {
+		t.Fatalf("expected telemetry snapshots in health response, got %s", healthRecorder.Body.String())
 	}
 }
 
