@@ -43,6 +43,7 @@ const selectedAlbum = ref<AlbumDetailResponse | null>(null);
 const selectedAssetId = ref('');
 const selectedAssetDetail = ref<AssetDetail | null>(null);
 const detailLoading = ref(false);
+const assetDetailPanel = ref<HTMLElement | null>(null);
 
 const exportScope = ref<ExportRequest['scope']>('library');
 const exportDateFrom = ref('');
@@ -231,6 +232,11 @@ async function openAssetDetail(assetId: string) {
     selectedAssetDetail.value = await apiFetch<AssetDetailResponse>(
       `/api/v1/assets/${assetId}?${baseParams()}`,
     );
+    await nextTick();
+    assetDetailPanel.value?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
   } catch (caught) {
     error.value = formatError(caught);
   } finally {
@@ -666,7 +672,11 @@ function formatError(error: unknown) {
         </div>
       </article>
 
-      <article class="panel">
+      <article
+        ref="assetDetailPanel"
+        class="panel"
+        :class="{ 'detail-panel-active': detailLoading || selectedAssetDetail }"
+      >
         <div class="panel-head">
           <div>
             <p class="panel-label">Asset Detail</p>
@@ -1040,6 +1050,13 @@ select {
 .detail-card {
   display: grid;
   gap: 12px;
+}
+
+.detail-panel-active {
+  border-color: rgba(15, 95, 102, 0.22);
+  box-shadow:
+    0 26px 60px rgba(20, 43, 47, 0.09),
+    0 0 0 3px rgba(15, 95, 102, 0.08);
 }
 
 .detail-id,

@@ -5,9 +5,14 @@
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build",
-    "prepare": "nuxt prepare"
+    "prepare": "nuxt prepare",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@noble/hashes": "^2.2.0",
     "nuxt": "^4.4.2"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
   }
 }

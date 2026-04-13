@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type {
-  AssetAcceptedResponse,
   AuthSessionResponse,
   ImportSession,
-  UploadTicket,
 } from '../lib/api/client';
 import { apiFetch } from '../lib/api/client';
+import { computeSHA256 } from '../lib/import/hash';
+import { executeUploadFlow } from '../lib/import/upload';
 
 type UploadStatus =
   | 'pending'
@@ -131,54 +131,30 @@ async function uploadEntry(entry: UploadEntry) {
       },
     );
 
-    let completedParts: Array<{ partNumber: number; etag: string }> | undefined;
-    let uploadId: string | undefined;
-    let uploadETag: string | undefined;
-
-    if (ticket.multipart) {
-      entry.status = 'uploading';
-      entry.message = '分片直传对象存储';
-      const multipartResult = await uploadMultipart(ticket, entry.file);
-      completedParts = multipartResult.parts;
-      uploadId = ticket.multipart.uploadId;
-    } else {
-      if (!ticket.url) {
-        throw new Error('服务端没有返回可用的上传地址');
-      }
-
-      entry.status = 'uploading';
-      entry.message = '浏览器直传对象存储';
-      const uploadResponse = await fetch(ticket.url, {
-        method: ticket.method || 'PUT',
-        headers: buildUploadHeaders(ticket.headers, entry.file, true),
-        body: entry.file,
-        mode: 'cors',
-      });
-      if (!uploadResponse.ok) {
-        throw new Error(`对象上传失败，状态码 ${uploadResponse.status}`);
-      }
-
-      uploadETag = uploadResponse.headers.get('etag') ?? undefined;
-    }
-
     entry.objectKey = ticket.objectKey;
-    entry.status = 'confirming';
-    entry.message = '回调服务端确认上传';
-    const confirmation = await apiFetch<AssetAcceptedResponse>(
-      `/api/v1/import/sessions/${importSession.value.id}/confirm`,
-      {
-        method: 'POST',
-        body: {
-          libraryId: libraryId.value.trim(),
-          objectKey: ticket.objectKey,
-          contentLength: entry.file.size,
-          contentSha256: entry.sha256,
-          etag: uploadETag,
-          uploadId,
-          parts: completedParts,
-        },
+    entry.status = 'uploading';
+    entry.message = ticket.multipart ? '分片直传对象存储' : '浏览器直传对象存储';
+    const confirmation = await executeUploadFlow({
+      ticket,
+      file: entry.file,
+      contentSha256: entry.sha256,
+      fetchImpl: (input, init) =>
+        fetch(input, {
+          ...init,
+          mode: 'cors',
+        }),
+      confirmUpload: async (payload) => {
+        entry.status = 'confirming';
+        entry.message = '回调服务端确认上传';
+        return await apiFetch(`/api/v1/import/sessions/${importSession.value!.id}/confirm`, {
+          method: 'POST',
+          body: {
+            libraryId: libraryId.value.trim(),
+            ...payload,
+          },
+        });
       },
-    );
+    });
 
     entry.assetId = confirmation.assetId;
     entry.processingStage = confirmation.processingStage;
@@ -188,67 +164,6 @@ async function uploadEntry(entry: UploadEntry) {
     entry.status = 'error';
     entry.message = formatError(error);
   }
-}
-
-async function uploadMultipart(ticket: UploadTicket, file: File) {
-  if (!ticket.multipart || ticket.multipart.parts.length === 0) {
-    throw new Error('服务端没有返回有效的 multipart 票据');
-  }
-
-  const partSize = Math.ceil(file.size / ticket.multipart.parts.length);
-  const parts: Array<{ partNumber: number; etag: string }> = [];
-
-  for (const part of ticket.multipart.parts) {
-    const start = (part.partNumber - 1) * partSize;
-    const end = Math.min(file.size, start + partSize);
-    const chunk = file.slice(start, end);
-    const response = await fetch(part.uploadUrl, {
-      method: 'PUT',
-      headers: buildUploadHeaders(part.headers, file, false),
-      body: chunk,
-      mode: 'cors',
-    });
-    if (!response.ok) {
-      throw new Error(`分片 ${part.partNumber} 上传失败，状态码 ${response.status}`);
-    }
-
-    const etag = response.headers.get('etag');
-    if (!etag) {
-      throw new Error(`分片 ${part.partNumber} 上传成功，但响应里缺少 etag`);
-    }
-
-    parts.push({
-      partNumber: part.partNumber,
-      etag,
-    });
-  }
-
-  return { parts };
-}
-
-function buildUploadHeaders(rawHeaders: Record<string, string> | undefined, file: File, includeContentType: boolean) {
-  const headers = new Headers();
-  for (const [name, value] of Object.entries(rawHeaders ?? {})) {
-    const lowered = name.toLowerCase();
-    if (lowered === 'host' || lowered === 'content-length') {
-      continue;
-    }
-    headers.set(name, value);
-  }
-
-  if (includeContentType && !headers.has('Content-Type')) {
-    headers.set('Content-Type', file.type || 'application/octet-stream');
-  }
-
-  return headers;
-}
-
-async function computeSHA256(file: File) {
-  const buffer = await file.arrayBuffer();
-  const digest = await crypto.subtle.digest('SHA-256', buffer);
-  return Array.from(new Uint8Array(digest))
-    .map((chunk) => chunk.toString(16).padStart(2, '0'))
-    .join('');
 }
 
 function formatError(error: unknown) {
