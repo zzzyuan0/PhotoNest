@@ -13,6 +13,7 @@ export type CreateAlbumRequest = components['schemas']['CreateAlbumRequest'];
 export type CreateImportSessionRequest = components['schemas']['CreateImportSessionRequest'];
 export type CreateUploadTicketRequest = components['schemas']['CreateUploadTicketRequest'];
 export type DuplicatesResponse = components['schemas']['DuplicatesResponse'];
+export type DownloadGrant = components['schemas']['DownloadGrant'];
 export type ExportJob = components['schemas']['ExportJob'];
 export type ExportRequest = components['schemas']['ExportRequest'];
 export type HealthResponse = components['schemas']['HealthResponse'];
