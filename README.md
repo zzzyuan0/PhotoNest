@@ -91,6 +91,19 @@ PhotoNest 是一个面向个人分散照片库的照片管理平台，目标是�
 - 如果需要无云账号联调，可先执行 `make up-sim`，再把 `PHOTONEST_CONFIG` 指向 `./config/examples/app.object-sim.yaml`，通过 MinIO 走 `s3-compatible` 适配路径。
 - Go 本地工具链与缓存默认收敛到 `home` 目录下的 `/home/root/.local/go`、`/home/root/.local/share/photonest/go`、`/home/root/.cache/photonest/go-build` 和 `/home/root/.config/go/env`，避免把编译数据写到仓库目录或系统级临时位置；开发脚本不再自动回退到 Docker Go 镜像。
 
+### 一键启动
+
+- `make dev`
+  使用 `app.object-sim.yaml` + PostgreSQL + Redis + MinIO 启动 API、Worker 和 Web，适合本地全链路联调。
+- `make dev-cos`
+  根据 `.env.local` 中的 `STORAGE_COS_*` 与 `PHOTONEST_*` 变量渲染临时 COS 配置，再启动 PostgreSQL、Redis、API、Worker 和 Web。
+- `make stop`
+  停止 API、Worker 和 Web 进程；如需清理依赖容器，再执行 `make down`。
+- `make status`
+  查看当前一键启动拉起的进程状态与日志位置。
+- `make acceptance-check`
+  检查真实 COS 验收所需的关键环境变量与端口条件。
+
 ## 下一步建议
 
 如果继续往前推进，这个仓库最适合优先补下面三项：

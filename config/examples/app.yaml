@@ -115,3 +115,5 @@ security:
     displayName: Bootstrap Admin
     roles:
       - admin
+    libraryIds:
+      - 11111111-1111-1111-1111-111111111111

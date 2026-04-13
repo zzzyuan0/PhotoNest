@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -61,6 +62,10 @@ func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Depe
 		db, err := persistence.OpenPostgres(context.Background(), cfg.Database)
 		if err != nil {
 			return nil, fmt.Errorf("open postgres: %w", err)
+		}
+		if err := persistence.ApplyMigrations(context.Background(), db); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("apply postgres migrations: %w", err)
 		}
 		repository = persistence.NewPostgresRepository(db)
 	}
@@ -153,7 +158,79 @@ func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Depe
 
 	server.routes()
 
-	return server.mux, nil
+	return server.withMiddleware(server.mux), nil
+}
+
+func (s *Server) withMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.applyCORS(w, r) {
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) applyCORS(w http.ResponseWriter, r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return false
+	}
+
+	if !s.isAllowedOrigin(origin) {
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusForbidden)
+			return true
+		}
+		return false
+	}
+
+	headers := w.Header()
+	headers.Set("Vary", "Origin")
+	headers.Set("Access-Control-Allow-Origin", origin)
+	headers.Set("Access-Control-Allow-Credentials", "true")
+	headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+	headers.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token, X-PhotoNest-Library-ID")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return true
+	}
+
+	return false
+}
+
+func (s *Server) isAllowedOrigin(origin string) bool {
+	if s.isDevelopmentEnvironment() {
+		if parsed, err := url.Parse(origin); err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") {
+			return parsed.Host != ""
+		}
+	}
+
+	allowedOrigins := make(map[string]struct{})
+	for _, candidate := range s.cfg.StorageProviders.Primary.AllowedOrigins {
+		if value := strings.TrimSpace(candidate); value != "" {
+			allowedOrigins[value] = struct{}{}
+		}
+	}
+	for _, provider := range s.cfg.StorageProviders.Backup {
+		for _, candidate := range provider.AllowedOrigins {
+			if value := strings.TrimSpace(candidate); value != "" {
+				allowedOrigins[value] = struct{}{}
+			}
+		}
+	}
+
+	_, ok := allowedOrigins[origin]
+	return ok
+}
+
+func (s *Server) isDevelopmentEnvironment() bool {
+	switch strings.ToLower(strings.TrimSpace(s.cfg.Service.Environment)) {
+	case "development", "dev", "local":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) routes() {

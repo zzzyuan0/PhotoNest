@@ -181,6 +181,28 @@ func TestHealthExposesAuditTelemetrySnapshots(t *testing.T) {
 	}
 }
 
+func TestCORSPreflightAllowsDevelopmentOrigin(t *testing.T) {
+	handler := newTestHandler(t)
+
+	request := httptest.NewRequest(http.MethodOptions, "/api/v1/auth/login", nil)
+	request.Header.Set("Origin", "http://192.168.8.80:3000")
+	request.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	request.Header.Set("Access-Control-Request-Headers", "content-type")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "http://192.168.8.80:3000" {
+		t.Fatalf("expected reflected origin, got %q", got)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("expected credentials to be allowed, got %q", got)
+	}
+}
+
 func newTestHandler(t *testing.T) http.Handler {
 	t.Helper()
 
@@ -235,6 +257,10 @@ func newTestHandler(t *testing.T) http.Handler {
 
 func newTestConfig() config.AppConfig {
 	return config.AppConfig{
+		Service: config.ServiceConfig{
+			Name:        "photonest-test",
+			Environment: "development",
+		},
 		Security: config.SecurityConfig{
 			CSRFEnabled:      true,
 			RecentAuthWindow: 15 * time.Minute,

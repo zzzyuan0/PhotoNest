@@ -1,3 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT_DIR"
+
+source "$ROOT_DIR/scripts/dev/load-env.sh" "$ROOT_DIR"
+
+STATE_DIR="${PHOTONEST_DEV_STATE_DIR:-$ROOT_DIR/.cache/dev-stack}"
+CONFIG_OUT="$STATE_DIR/app.cos.local.yaml"
+
+mkdir -p "$STATE_DIR"
+
+required_vars=(
+  STORAGE_COS_BUCKET
+  STORAGE_COS_REGION
+  STORAGE_COS_ENDPOINT
+)
+
+for key in "${required_vars[@]}"; do
+  if [[ -z "${!key:-}" ]]; then
+    echo "missing required env: $key" >&2
+    exit 1
+  fi
+done
+
+key_prefix="${STORAGE_COS_KEY_PREFIX:-photonest/dev/}"
+health_url="${STORAGE_COS_ENDPOINT%/}"
+
+cat >"$CONFIG_OUT" <<EOF
 service:
   name: photonest
   environment: development
@@ -29,48 +59,25 @@ queue:
 
 storageProviders:
   primary:
-    name: primary-minio
-    kind: s3-compatible
-    bucket: photonest-main
-    region: us-east-1
-    endpoint: http://localhost:9000
-    forcePathStyle: true
-    keyPrefix: libraries/main/
+    name: primary-cos
+    kind: tencent-cos
+    bucket: ${STORAGE_COS_BUCKET}
+    region: ${STORAGE_COS_REGION}
+    endpoint: ${STORAGE_COS_ENDPOINT}
+    keyPrefix: ${key_prefix}
     accessKeyId:
-      value: photonest
+      env: PHOTONEST_COS_SECRET_ID
     accessKeySecret:
-      value: photonest-dev-password
-    sessionToken:
-      allowEmpty: true
+      env: PHOTONEST_COS_SECRET_KEY
     uploadPresignTTL: 15m
     downloadPresignTTL: 5m
     allowedOrigins:
       - http://localhost:3000
       - http://127.0.0.1:3000
     privateRead: true
-    healthCheckURL: http://localhost:9000/minio/health/live
+    healthCheckURL: ${health_url}
     publicReadBlockMode: fail-fast
-  backup:
-    - name: backup-minio
-      kind: s3-compatible
-      bucket: photonest-backup
-      region: us-east-1
-      endpoint: http://localhost:9000
-      forcePathStyle: true
-      keyPrefix: backup/library-main/
-      accessKeyId:
-        value: photonest
-      accessKeySecret:
-        value: photonest-dev-password
-      sessionToken:
-        allowEmpty: true
-      uploadPresignTTL: 15m
-      downloadPresignTTL: 5m
-      allowedOrigins:
-        - http://localhost:3000
-      privateRead: true
-      healthCheckURL: http://localhost:9000/minio/health/live
-      publicReadBlockMode: fail-fast
+  backup: []
 
 aiProviders:
   - name: remote-openai
@@ -121,3 +128,6 @@ security:
       - admin
     libraryIds:
       - 11111111-1111-1111-1111-111111111111
+EOF
+
+printf '%s\n' "$CONFIG_OUT"

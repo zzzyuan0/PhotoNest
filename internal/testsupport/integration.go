@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/photonest/photonest/internal/platform/config"
+	"github.com/photonest/photonest/internal/platform/persistence"
 )
 
 const (
@@ -146,20 +145,7 @@ func OpenPostgres(t *testing.T, cfg config.DatabaseConfig) *sql.DB {
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		return fmt.Errorf("resolve integration helper path")
-	}
-	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-	path := filepath.Join(root, "db", "migrations", "000001_init.sql")
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", path, err)
-	}
-	if _, err := db.ExecContext(ctx, string(content)); err != nil {
-		return fmt.Errorf("exec %s: %w", path, err)
-	}
-	return nil
+	return persistence.ApplyMigrations(ctx, db)
 }
 
 func defaultEnv(key string, fallback string) string {

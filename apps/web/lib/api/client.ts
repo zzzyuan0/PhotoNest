@@ -27,6 +27,34 @@ export type ApiFetchOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;
 };
 
+function resolveApiBaseURL(configuredBaseURL: string): string {
+  if (!import.meta.client) {
+    return configuredBaseURL;
+  }
+
+  const trimmed = configuredBaseURL.trim();
+  if (trimmed === '') {
+    return `${window.location.protocol}//${window.location.hostname}:8080`;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return trimmed;
+  }
+
+  const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+  if (!localHosts.has(parsed.hostname) || localHosts.has(window.location.hostname)) {
+    return trimmed;
+  }
+
+  parsed.protocol = window.location.protocol;
+  parsed.hostname = window.location.hostname;
+  parsed.port = '8080';
+  return parsed.toString().replace(/\/$/, '');
+}
+
 export async function apiFetch<T>(path: string, init?: ApiFetchOptions): Promise<T> {
   const config = useRuntimeConfig();
   const headers = new Headers(init?.headers);
@@ -37,7 +65,7 @@ export async function apiFetch<T>(path: string, init?: ApiFetchOptions): Promise
   }
 
   return await $fetch<T>(path, {
-    baseURL: config.public.apiBaseURL,
+    baseURL: resolveApiBaseURL(config.public.apiBaseURL),
     credentials: 'include',
     headers,
     ...init,

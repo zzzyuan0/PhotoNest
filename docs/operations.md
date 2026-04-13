@@ -32,6 +32,34 @@ make api
 make worker
 ```
 
+### 一键启动整套本地栈
+
+- 对象存储模拟器模式：
+
+```bash
+make dev
+```
+
+- 真实 COS 模式：
+
+```bash
+make dev-cos
+```
+
+- 查看状态：
+
+```bash
+make status
+```
+
+- 停止应用进程：
+
+```bash
+make stop
+```
+
+一键启动会把 API、Worker 和 Web 的日志写入 `.cache/dev-stack/logs/`。
+
 ### 健康检查
 
 ```bash

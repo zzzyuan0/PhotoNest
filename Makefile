@@ -1,6 +1,8 @@
 GO_TOOL ?= ./scripts/dev/go-tool.sh
 
-.PHONY: install gen-client format format-check gofmt gofmt-check go-tidy up up-sim down health api worker
+.PHONY: install gen-client format format-check gofmt gofmt-check go-tidy \
+	up up-sim down health api worker web \
+	dev dev-cos stop status acceptance-check
 
 install:
 	pnpm install
@@ -40,3 +42,21 @@ api:
 
 worker:
 	./scripts/dev/worker.sh
+
+web:
+	./scripts/dev/web.sh
+
+dev:
+	./scripts/dev/start-stack.sh sim
+
+dev-cos:
+	./scripts/dev/start-stack.sh cos
+
+stop:
+	./scripts/dev/stop-stack.sh
+
+status:
+	./scripts/dev/status-stack.sh
+
+acceptance-check:
+	./scripts/dev/check-cos-acceptance.sh

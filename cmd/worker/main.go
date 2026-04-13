@@ -35,6 +35,9 @@ func main() {
 		log.Fatalf("open postgres: %v", err)
 	}
 	defer db.Close()
+	if err := persistence.ApplyMigrations(ctx, db); err != nil {
+		log.Fatalf("apply postgres migrations: %v", err)
+	}
 
 	repository := persistence.NewPostgresRepository(db)
 	provider, err := storage.NewProvider(ctx, cfg.StorageProviders.Primary)
