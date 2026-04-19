@@ -18,6 +18,35 @@ prepare_go_runtime() {
   "$ROOT_DIR/scripts/dev/go-tool.sh" go mod download
 }
 
+find_listening_pids() {
+  local port="$1"
+  lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
+}
+
+ensure_port_available() {
+  local name="$1"
+  local port="$2"
+  local pid_file="$PID_DIR/$name.pid"
+  local owner_pids
+
+  owner_pids="$(find_listening_pids "$port" | tr '\n' ' ' | xargs echo -n)"
+  if [[ -z "$owner_pids" ]]; then
+    return 0
+  fi
+
+  if [[ -f "$pid_file" ]]; then
+    local expected_pid
+    expected_pid="$(cat "$pid_file")"
+    if [[ " $owner_pids " == *" $expected_pid "* ]]; then
+      return 0
+    fi
+  fi
+
+  echo "$name cannot start because port :$port is already in use by pid(s): $owner_pids" >&2
+  echo "Run 'make stop' and, if needed, stop the orphaned process before retrying." >&2
+  exit 1
+}
+
 wait_for_port() {
   local name="$1"
   local port="$2"
@@ -81,8 +110,10 @@ esac
 
 prepare_go_runtime
 
+ensure_port_available api 8080
 start_process api "./scripts/dev/api.sh"
 wait_for_port api 8080 120
+ensure_port_available web 3000
 start_process worker "./scripts/dev/worker.sh"
 start_process web "./scripts/dev/web.sh"
 wait_for_port web 3000 90
