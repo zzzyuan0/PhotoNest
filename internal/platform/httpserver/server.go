@@ -98,10 +98,14 @@ func NewWithDependencies(cfg config.AppConfig, checker health.Checker, deps Depe
 		}
 	}
 	if deps.Enrichment == nil && deps.Ingestion != nil {
+		aiProviders, err := buildAIProviders(cfg.AIProviders)
+		if err != nil {
+			return nil, fmt.Errorf("build ai providers: %w", err)
+		}
 		deps.Enrichment, err = enrichment.NewService(enrichment.ServiceConfig{
 			Repository:          deps.Ingestion.Repository(),
 			Storage:             deps.Ingestion.Provider(),
-			AIProviders:         buildAIProviders(cfg.AIProviders),
+			AIProviders:         aiProviders,
 			Queue:               queue,
 			DownloadTTL:         cfg.Security.DownloadCredentialTTL,
 			DebugRetention:      cfg.Security.DebugRetention,
@@ -317,6 +321,11 @@ func (s *Server) routes() {
 		Permission:     auth.PermissionLibraryRead,
 		RequireLibrary: true,
 	}, s.handleAssetDetail))
+	s.mux.HandleFunc("GET /api/v1/assets/{assetId}/preview", s.secure(routeSpec{
+		Operation:      "getAssetPreview",
+		Permission:     auth.PermissionLibraryRead,
+		RequireLibrary: true,
+	}, s.handleAssetPreview))
 	s.mux.HandleFunc("PUT /api/v1/assets/{assetId}/favorite", s.secure(routeSpec{
 		Operation:      "setFavoriteAsset",
 		Permission:     auth.PermissionLibraryWrite,
@@ -407,26 +416,6 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-func buildAIProviders(configs []config.AIProviderConfig) []providerai.Provider {
-	providers := make([]providerai.Provider, 0, len(configs))
-	for _, cfg := range configs {
-		capabilities := make([]providerai.Capability, 0, len(cfg.Capabilities))
-		for _, capability := range cfg.Capabilities {
-			switch strings.ToLower(strings.TrimSpace(capability)) {
-			case string(providerai.CapabilityCaption):
-				capabilities = append(capabilities, providerai.CapabilityCaption)
-			case string(providerai.CapabilityOCR):
-				capabilities = append(capabilities, providerai.CapabilityOCR)
-			case string(providerai.CapabilityEmbedding):
-				capabilities = append(capabilities, providerai.CapabilityEmbedding)
-			}
-		}
-
-		boundary := providerai.BoundaryRemoteService
-		if strings.EqualFold(strings.TrimSpace(cfg.ExecutionBoundary), string(providerai.BoundaryLocalSidecar)) {
-			boundary = providerai.BoundaryLocalSidecar
-		}
-		providers = append(providers, providerai.NewDeterministicProvider(cfg.Name, boundary, capabilities, cfg.Model))
-	}
-	return providers
+func buildAIProviders(configs []config.AIProviderConfig) ([]providerai.Provider, error) {
+	return providerai.BuildProviders(context.Background(), configs)
 }

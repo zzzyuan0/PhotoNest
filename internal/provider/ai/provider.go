@@ -31,28 +31,33 @@ type ProviderStatus struct {
 }
 
 type CaptionRequest struct {
-	AssetID   string
-	ObjectURL string
-	Locale    string
-	FileName  string
+	AssetID      string
+	ObjectURL    string
+	Locale       string
+	FileName     string
+	ModelProfile string
 }
 
 type CaptionResult struct {
 	Text       string
 	Confidence float64
 	RawID      string
+	Metadata   InvocationMetadata
+	Signals    SemanticSignals
 }
 
 type OCRRequest struct {
-	AssetID   string
-	ObjectURL string
-	Locale    string
-	FileName  string
+	AssetID      string
+	ObjectURL    string
+	Locale       string
+	FileName     string
+	ModelProfile string
 }
 
 type OCRResult struct {
 	TextBlocks []OCRBlock
 	RawID      string
+	Metadata   InvocationMetadata
 }
 
 type OCRBlock struct {
@@ -68,6 +73,23 @@ type EmbeddingRequest struct {
 }
 
 type EmbeddingResult struct {
-	Vector []float32
-	RawID  string
+	Vector   []float32
+	RawID    string
+	Metadata InvocationMetadata
+}
+
+type InvocationMetadata struct {
+	ModelProfile string
+	Model        string
+}
+
+type SemanticSignals struct {
+	PeopleCount   string
+	Presentations []string
+	Scenes        []string
+	Activities    []string
+}
+
+type ProfileResolver interface {
+	ResolveModelProfile(capability Capability, requestedProfile string) InvocationMetadata
 }

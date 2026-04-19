@@ -7,30 +7,35 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
+	"strings"
 )
 
-// ApplyMigrations applies the current MVP schema to the target database.
-// The SQL file uses IF NOT EXISTS and ON CONFLICT patterns, so rerunning it is safe.
+// ApplyMigrations applies the baseline schema for new databases and then runs
+// any idempotent upgrade migrations for existing installations.
 func ApplyMigrations(ctx context.Context, db *sql.DB) error {
 	applied, err := hasBaselineSchema(ctx, db)
 	if err != nil {
 		return err
 	}
-	if applied {
-		return nil
-	}
 
-	path, err := migrationPath()
+	paths, err := migrationPaths()
 	if err != nil {
 		return err
 	}
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", path, err)
+
+	if !applied {
+		if err := execMigrationFile(ctx, db, paths[0]); err != nil {
+			return err
+		}
 	}
-	if _, err := db.ExecContext(ctx, string(content)); err != nil {
-		return fmt.Errorf("exec %s: %w", path, err)
+
+	for _, path := range paths[1:] {
+		if err := execMigrationFile(ctx, db, path); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -49,11 +54,40 @@ func hasBaselineSchema(ctx context.Context, db *sql.DB) (bool, error) {
 	return exists, nil
 }
 
-func migrationPath() (string, error) {
+func migrationPaths() ([]string, error) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
-		return "", fmt.Errorf("resolve migration helper path")
+		return nil, fmt.Errorf("resolve migration helper path")
 	}
 	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
-	return filepath.Join(root, "db", "migrations", "000001_init.sql"), nil
+	dir := filepath.Join(root, "db", "migrations")
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read migrations dir %s: %w", dir, err)
+	}
+
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, entry.Name()))
+	}
+	sort.Strings(paths)
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no migration files found in %s", dir)
+	}
+	return paths, nil
+}
+
+func execMigrationFile(ctx context.Context, db *sql.DB, path string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	if _, err := db.ExecContext(ctx, string(content)); err != nil {
+		return fmt.Errorf("exec %s: %w", path, err)
+	}
+	return nil
 }

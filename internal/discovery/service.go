@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -60,12 +61,18 @@ type Summary struct {
 	Asset          asset.Asset
 	ThumbnailToken string
 	CaptionPreview string
+	OCRPreview     string
+	SemanticTags   []string
+	SearchReady    bool
 }
 
 type Detail struct {
 	Asset          asset.Asset
 	ThumbnailToken string
 	CaptionPreview string
+	OCRPreview     string
+	SemanticTags   []string
+	SearchReady    bool
 }
 
 type DownloadGrant struct {
@@ -73,6 +80,14 @@ type DownloadGrant struct {
 	Status    string
 	URL       string
 	ExpiresAt time.Time
+}
+
+type PreviewStream struct {
+	AssetID       string
+	MediaType     string
+	ContentLength int64
+	LastModified  time.Time
+	Body          io.ReadCloser
 }
 
 type SearchQuery struct {
@@ -458,6 +473,9 @@ func (s *Service) GetAssetDetail(ctx context.Context, libraryID string, assetID 
 		Asset:          summary.Asset,
 		ThumbnailToken: summary.ThumbnailToken,
 		CaptionPreview: summary.CaptionPreview,
+		OCRPreview:     summary.OCRPreview,
+		SemanticTags:   summary.SemanticTags,
+		SearchReady:    summary.SearchReady,
 	}, nil
 }
 
@@ -488,6 +506,53 @@ func (s *Service) RequestDownload(ctx context.Context, libraryID string, assetID
 	}, nil
 }
 
+func (s *Service) OpenPreview(ctx context.Context, libraryID string, assetID string) (PreviewStream, error) {
+	record, err := s.repository.GetAsset(ctx, assetID)
+	if err != nil {
+		return PreviewStream{}, err
+	}
+	if !strings.EqualFold(strings.TrimSpace(record.LibraryID), strings.TrimSpace(libraryID)) {
+		return PreviewStream{}, fmt.Errorf("asset does not belong to library")
+	}
+
+	ref, err := s.findOriginalReference(ctx, assetID)
+	if err != nil {
+		return PreviewStream{}, err
+	}
+
+	info, err := s.storage.HeadObject(ctx, storage.ObjectRef{
+		Bucket: ref.Bucket,
+		Key:    ref.ObjectKey,
+	})
+	if err != nil {
+		return PreviewStream{}, err
+	}
+
+	body, err := s.storage.GetObject(ctx, storage.ObjectRef{
+		Bucket: ref.Bucket,
+		Key:    ref.ObjectKey,
+	})
+	if err != nil {
+		return PreviewStream{}, err
+	}
+
+	mediaType := strings.TrimSpace(info.ContentType)
+	if mediaType == "" {
+		mediaType = strings.TrimSpace(record.MediaType)
+	}
+	if mediaType == "" {
+		mediaType = "application/octet-stream"
+	}
+
+	return PreviewStream{
+		AssetID:       assetID,
+		MediaType:     mediaType,
+		ContentLength: info.ContentLength,
+		LastModified:  info.LastModified.UTC(),
+		Body:          body,
+	}, nil
+}
+
 func (s *Service) summaryForAsset(ctx context.Context, record asset.Asset, policy library.Policy) (Summary, error) {
 	token, err := s.thumbnailToken(ctx, record.ID)
 	if err != nil {
@@ -498,11 +563,18 @@ func (s *Service) summaryForAsset(ctx context.Context, record asset.Asset, polic
 	if policy.CaptionVisiblePreview() {
 		captionPreview = ai.TextPreview(record.CaptionText, 80)
 	}
+	ocrPreview := ""
+	if policy.OCRVisiblePreview() {
+		ocrPreview = ai.TextPreview(record.OCRText, 80)
+	}
 
 	return Summary{
 		Asset:          record,
 		ThumbnailToken: token,
 		CaptionPreview: captionPreview,
+		OCRPreview:     ocrPreview,
+		SemanticTags:   ai.SemanticTags(record.Tags),
+		SearchReady:    record.IndexedAt != nil,
 	}, nil
 }
 

@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -47,10 +46,15 @@ func main() {
 	queue := persistence.NewRedisQueue(cfg.Queue)
 	defer queue.Close()
 
+	aiProviders, err := providerai.BuildProviders(ctx, cfg.AIProviders)
+	if err != nil {
+		log.Fatalf("build ai providers: %v", err)
+	}
+
 	service, err := enrichment.NewService(enrichment.ServiceConfig{
 		Repository:          repository,
 		Storage:             provider,
-		AIProviders:         buildAIProviders(cfg.AIProviders),
+		AIProviders:         aiProviders,
 		Queue:               queue,
 		DownloadTTL:         cfg.Security.DownloadCredentialTTL,
 		DebugRetention:      cfg.Security.DebugRetention,
@@ -76,28 +80,4 @@ func main() {
 			}
 		}
 	}
-}
-
-func buildAIProviders(configs []config.AIProviderConfig) []providerai.Provider {
-	providers := make([]providerai.Provider, 0, len(configs))
-	for _, cfg := range configs {
-		capabilities := make([]providerai.Capability, 0, len(cfg.Capabilities))
-		for _, capability := range cfg.Capabilities {
-			switch strings.ToLower(strings.TrimSpace(capability)) {
-			case string(providerai.CapabilityCaption):
-				capabilities = append(capabilities, providerai.CapabilityCaption)
-			case string(providerai.CapabilityOCR):
-				capabilities = append(capabilities, providerai.CapabilityOCR)
-			case string(providerai.CapabilityEmbedding):
-				capabilities = append(capabilities, providerai.CapabilityEmbedding)
-			}
-		}
-
-		boundary := providerai.BoundaryRemoteService
-		if strings.EqualFold(strings.TrimSpace(cfg.ExecutionBoundary), string(providerai.BoundaryLocalSidecar)) {
-			boundary = providerai.BoundaryLocalSidecar
-		}
-		providers = append(providers, providerai.NewDeterministicProvider(cfg.Name, boundary, capabilities, cfg.Model))
-	}
-	return providers
 }

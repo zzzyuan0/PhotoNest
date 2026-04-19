@@ -11,13 +11,19 @@ import (
 )
 
 type assetSummary struct {
-	AssetID           string `json:"assetId"`
-	MediaType         string `json:"mediaType"`
-	TimelineTimestamp string `json:"timelineTimestamp"`
-	ProcessingStage   string `json:"processingStage"`
-	BackupStatus      string `json:"backupStatus"`
-	ThumbnailToken    string `json:"thumbnailToken,omitempty"`
-	CaptionPreview    string `json:"captionPreview,omitempty"`
+	AssetID               string   `json:"assetId"`
+	MediaType             string   `json:"mediaType"`
+	TimelineTimestamp     string   `json:"timelineTimestamp"`
+	ProcessingStage       string   `json:"processingStage"`
+	BackupStatus          string   `json:"backupStatus"`
+	ThumbnailToken        string   `json:"thumbnailToken,omitempty"`
+	CaptionPreview        string   `json:"captionPreview,omitempty"`
+	OCRPreview            string   `json:"ocrPreview,omitempty"`
+	LocationLabel         string   `json:"locationLabel"`
+	Tags                  []string `json:"tags"`
+	SemanticTags          []string `json:"semanticTags"`
+	SearchReady           bool     `json:"searchReady"`
+	RecognitionStatusNote string   `json:"recognitionStatusNote,omitempty"`
 }
 
 type timelineResponse struct {
@@ -83,12 +89,12 @@ type createAlbumRequest struct {
 
 type addAlbumAssetRequest struct {
 	LibraryID string `json:"libraryId"`
-	AssetID string `json:"assetId"`
+	AssetID   string `json:"assetId"`
 }
 
 type setFavoriteRequest struct {
 	LibraryID string `json:"libraryId"`
-	Favorite bool `json:"favorite"`
+	Favorite  bool   `json:"favorite"`
 }
 
 func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
@@ -369,13 +375,19 @@ func mapAssetSummaries(items []discovery.Summary) []assetSummary {
 
 func mapAssetSummary(item discovery.Summary) assetSummary {
 	return assetSummary{
-		AssetID:           item.Asset.ID,
-		MediaType:         item.Asset.MediaType,
-		TimelineTimestamp: timelineAt(item).Format(time.RFC3339),
-		ProcessingStage:   apiProcessingStage(item.Asset.ProcessingStage),
-		BackupStatus:      item.Asset.BackupStatus,
-		ThumbnailToken:    item.ThumbnailToken,
-		CaptionPreview:    item.CaptionPreview,
+		AssetID:               item.Asset.ID,
+		MediaType:             item.Asset.MediaType,
+		TimelineTimestamp:     timelineAt(item).Format(time.RFC3339),
+		ProcessingStage:       apiProcessingStage(item.Asset.ProcessingStage),
+		BackupStatus:          item.Asset.BackupStatus,
+		ThumbnailToken:        item.ThumbnailToken,
+		CaptionPreview:        item.CaptionPreview,
+		OCRPreview:            item.OCRPreview,
+		LocationLabel:         item.Asset.LocationLabel,
+		Tags:                  append([]string{}, item.Asset.Tags...),
+		SemanticTags:          append([]string{}, item.SemanticTags...),
+		SearchReady:           item.SearchReady,
+		RecognitionStatusNote: item.Asset.RecognitionStatusNote,
 	}
 }
 

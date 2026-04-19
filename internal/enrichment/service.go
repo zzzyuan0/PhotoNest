@@ -60,11 +60,13 @@ type Service struct {
 }
 
 type stageResult struct {
-	status       asset.RecognitionStatus
-	providerName string
-	policyReason string
-	debugPayload map[string]any
-	err          error
+	status          asset.RecognitionStatus
+	providerName    string
+	providerProfile string
+	providerModel   string
+	policyReason    string
+	debugPayload    map[string]any
+	err             error
 }
 
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -322,7 +324,7 @@ func (s *Service) runMetadataStage(ctx context.Context, record *asset.Asset, pol
 func (s *Service) runCaptionStage(ctx context.Context, record *asset.Asset, policy library.Policy, retryCount int) stageResult {
 	if !policy.ShouldRunCaption() {
 		record.CaptionText = ""
-		record.Tags = ai.MergeTags(record.OCRText, record.LocationLabel, record.OriginalFilename)
+		record.Tags = s.buildAssetTags(*record, ai.SemanticSignals{})
 		return stageResult{
 			status:       asset.RecognitionStatusSkipped,
 			policyReason: "caption generation disabled by privacy policy",
@@ -333,30 +335,45 @@ func (s *Service) runCaptionStage(ctx context.Context, record *asset.Asset, poli
 	if routeErr != nil {
 		return s.routeErrorResult(record, ai.CapabilityCaption, routeErr)
 	}
+	metadata := resolveProviderMetadata(provider, ai.CapabilityCaption, s.visualModelProfile(ctx, record.ID))
 	result, err := provider.Caption(ctx, ai.CaptionRequest{
-		AssetID:   record.ID,
-		ObjectURL: request.URL,
-		Locale:    "zh-CN",
-		FileName:  record.OriginalFilename,
+		AssetID:      record.ID,
+		ObjectURL:    request.URL,
+		Locale:       "zh-CN",
+		FileName:     record.OriginalFilename,
+		ModelProfile: metadata.ModelProfile,
 	})
 	if err != nil {
 		return stageResult{
-			status:       asset.RecognitionStatusFailed,
-			providerName: provider.Name(),
-			err:          ai.ClassifyError(err, provider.Boundary()),
+			status:          asset.RecognitionStatusFailed,
+			providerName:    provider.Name(),
+			providerProfile: metadata.ModelProfile,
+			providerModel:   metadata.Model,
+			debugPayload: s.providerDebug(map[string]any{
+				"stage":        string(asset.RecognitionStageCaption),
+				"modelProfile": metadata.ModelProfile,
+				"model":        metadata.Model,
+			}),
+			err: ai.ClassifyError(err, provider.Boundary()),
 		}
 	}
 
 	record.CaptionText = strings.TrimSpace(result.Text)
-	record.Tags = ai.MergeTags(record.CaptionText, record.OCRText, record.LocationLabel, record.OriginalFilename)
+	record.Tags = s.buildAssetTags(*record, result.Signals)
 
 	return stageResult{
-		status:       asset.RecognitionStatusSucceeded,
-		providerName: provider.Name(),
+		status:          asset.RecognitionStatusSucceeded,
+		providerName:    provider.Name(),
+		providerProfile: result.Metadata.ModelProfile,
+		providerModel:   result.Metadata.Model,
 		debugPayload: s.providerDebug(map[string]any{
-			"stage":       string(asset.RecognitionStageCaption),
-			"rawId":       result.RawID,
-			"captionText": ai.TextPreview(result.Text, 96),
+			"stage":         string(asset.RecognitionStageCaption),
+			"rawId":         result.RawID,
+			"captionText":   ai.TextPreview(result.Text, 96),
+			"modelProfile":  result.Metadata.ModelProfile,
+			"model":         result.Metadata.Model,
+			"semanticTags":  ai.NormalizeSemanticTags(result.Signals, result.Text),
+			"semanticHints": result.Signals,
 		}),
 	}
 }
@@ -364,7 +381,7 @@ func (s *Service) runCaptionStage(ctx context.Context, record *asset.Asset, poli
 func (s *Service) runOCRStage(ctx context.Context, record *asset.Asset, policy library.Policy, retryCount int) stageResult {
 	if !policy.ShouldRunOCR() {
 		record.OCRText = ""
-		record.Tags = ai.MergeTags(record.CaptionText, record.LocationLabel, record.OriginalFilename)
+		record.Tags = s.buildAssetTags(*record, ai.SemanticSignals{})
 		return stageResult{
 			status:       asset.RecognitionStatusSkipped,
 			policyReason: "ocr extraction disabled by privacy policy",
@@ -375,17 +392,26 @@ func (s *Service) runOCRStage(ctx context.Context, record *asset.Asset, policy l
 	if routeErr != nil {
 		return s.routeErrorResult(record, ai.CapabilityOCR, routeErr)
 	}
+	metadata := resolveProviderMetadata(provider, ai.CapabilityOCR, s.visualModelProfile(ctx, record.ID))
 	result, err := provider.OCR(ctx, ai.OCRRequest{
-		AssetID:   record.ID,
-		ObjectURL: request.URL,
-		Locale:    "zh-CN",
-		FileName:  record.OriginalFilename,
+		AssetID:      record.ID,
+		ObjectURL:    request.URL,
+		Locale:       "zh-CN",
+		FileName:     record.OriginalFilename,
+		ModelProfile: metadata.ModelProfile,
 	})
 	if err != nil {
 		return stageResult{
-			status:       asset.RecognitionStatusFailed,
-			providerName: provider.Name(),
-			err:          ai.ClassifyError(err, provider.Boundary()),
+			status:          asset.RecognitionStatusFailed,
+			providerName:    provider.Name(),
+			providerProfile: metadata.ModelProfile,
+			providerModel:   metadata.Model,
+			debugPayload: s.providerDebug(map[string]any{
+				"stage":        string(asset.RecognitionStageOCR),
+				"modelProfile": metadata.ModelProfile,
+				"model":        metadata.Model,
+			}),
+			err: ai.ClassifyError(err, provider.Boundary()),
 		}
 	}
 
@@ -396,15 +422,19 @@ func (s *Service) runOCRStage(ctx context.Context, record *asset.Asset, policy l
 		}
 	}
 	record.OCRText = strings.Join(blocks, "\n")
-	record.Tags = ai.MergeTags(record.CaptionText, record.OCRText, record.LocationLabel, record.OriginalFilename)
+	record.Tags = s.buildAssetTags(*record, ai.InferSemanticSignals(record.CaptionText, record.OriginalFilename))
 
 	return stageResult{
-		status:       asset.RecognitionStatusSucceeded,
-		providerName: provider.Name(),
+		status:          asset.RecognitionStatusSucceeded,
+		providerName:    provider.Name(),
+		providerProfile: result.Metadata.ModelProfile,
+		providerModel:   result.Metadata.Model,
 		debugPayload: s.providerDebug(map[string]any{
-			"stage": string(asset.RecognitionStageOCR),
-			"rawId": result.RawID,
-			"text":  ai.TextPreview(record.OCRText, 96),
+			"stage":        string(asset.RecognitionStageOCR),
+			"rawId":        result.RawID,
+			"text":         ai.TextPreview(record.OCRText, 96),
+			"modelProfile": result.Metadata.ModelProfile,
+			"model":        result.Metadata.Model,
 		}),
 	}
 }
@@ -450,17 +480,14 @@ func (s *Service) runEmbeddingStage(ctx context.Context, record *asset.Asset, po
 
 func (s *Service) runIndexingStage(_ context.Context, record *asset.Asset) stageResult {
 	record.Tags = ai.MergeTags(record.CaptionText, record.OCRText, record.LocationLabel, record.OriginalFilename)
+	record.Tags = s.buildAssetTags(*record, ai.InferSemanticSignals(record.CaptionText, record.OriginalFilename))
 	if record.CapturedAt != nil {
 		record.TimelineAt = record.CapturedAt.UTC()
 	} else if record.TimelineAt.IsZero() {
 		record.TimelineAt = record.ImportedAt.UTC()
 	}
 	record.SearchDocument = buildSearchDocument(*record)
-	if len(record.Embedding) > 0 {
-		record.SearchEmbedding = slices.Clone(record.Embedding)
-	} else {
-		record.SearchEmbedding = ai.HashEmbeddingText(record.SearchDocument, 24)
-	}
+	record.SearchEmbedding = ai.HashEmbeddingText(record.SearchDocument, 24)
 	indexedAt := s.now().UTC()
 	record.IndexedAt = &indexedAt
 
@@ -753,6 +780,7 @@ func buildSearchDocument(record asset.Asset) string {
 		record.OCRText,
 		record.LocationLabel,
 		strings.Join(record.Tags, " "),
+		strings.Join(ai.SearchTermsFromTags(record.Tags), " "),
 	}
 	filtered := make([]string, 0, len(parts))
 	for _, part := range parts {
@@ -771,6 +799,9 @@ func (s *Service) recordStageTelemetry(record asset.Asset, run asset.Recognition
 	if run.ProviderName != "" {
 		labels["provider"] = run.ProviderName
 	}
+	if result.providerProfile != "" {
+		labels["model_profile"] = result.providerProfile
+	}
 	s.recordTelemetry(telemetry.Snapshot{
 		Metric: "enrichment.stage",
 		Labels: labels,
@@ -778,6 +809,7 @@ func (s *Service) recordStageTelemetry(record asset.Asset, run asset.Recognition
 			"status":           string(result.status),
 			"processing_stage": string(record.ProcessingStage),
 			"has_error":        result.err != nil,
+			"model":            result.providerModel,
 		},
 	})
 	if result.err != nil {
@@ -801,6 +833,34 @@ func (s *Service) recordStageTelemetry(record asset.Asset, run asset.Recognition
 			},
 		})
 	}
+}
+
+func (s *Service) buildAssetTags(record asset.Asset, signals ai.SemanticSignals) []string {
+	tags := ai.MergeTags(record.CaptionText, record.OCRText, record.LocationLabel, record.OriginalFilename)
+	tags = append(tags, ai.NormalizeSemanticTags(signals, record.CaptionText, record.OriginalFilename)...)
+	slices.Sort(tags)
+	return slices.Compact(tags)
+}
+
+func (s *Service) visualModelProfile(ctx context.Context, assetID string) string {
+	for _, stage := range []asset.RecognitionStage{asset.RecognitionStageCaption, asset.RecognitionStageOCR} {
+		run, found, err := s.repository.GetRecognitionRun(ctx, assetID, stage)
+		if err != nil || !found {
+			continue
+		}
+		if profile, ok := run.DebugPayload["modelProfile"].(string); ok && strings.TrimSpace(profile) != "" {
+			return strings.TrimSpace(profile)
+		}
+	}
+	return ""
+}
+
+func resolveProviderMetadata(provider ai.Provider, capability ai.Capability, requestedProfile string) ai.InvocationMetadata {
+	resolver, ok := provider.(ai.ProfileResolver)
+	if !ok {
+		return ai.InvocationMetadata{ModelProfile: strings.TrimSpace(requestedProfile)}
+	}
+	return resolver.ResolveModelProfile(capability, requestedProfile)
 }
 
 func (s *Service) recordTelemetry(snapshot telemetry.Snapshot) {

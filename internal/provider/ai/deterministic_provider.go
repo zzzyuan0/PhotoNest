@@ -57,11 +57,14 @@ func (p *DeterministicProvider) Caption(_ context.Context, request CaptionReques
 	if len(tokens) > 0 {
 		text = "photo of " + strings.Join(tokens, " ")
 	}
+	metadata := p.ResolveModelProfile(CapabilityCaption, request.ModelProfile)
 
 	return CaptionResult{
 		Text:       text,
 		Confidence: 0.66,
 		RawID:      fmt.Sprintf("%s:caption:%s", p.name, request.AssetID),
+		Metadata:   metadata,
+		Signals:    InferSemanticSignals(text, request.FileName),
 	}, nil
 }
 
@@ -77,7 +80,8 @@ func (p *DeterministicProvider) OCR(_ context.Context, request OCRRequest) (OCRR
 			Text:  text,
 			Score: 0.52,
 		}},
-		RawID: fmt.Sprintf("%s:ocr:%s", p.name, request.AssetID),
+		RawID:    fmt.Sprintf("%s:ocr:%s", p.name, request.AssetID),
+		Metadata: p.ResolveModelProfile(CapabilityOCR, request.ModelProfile),
 	}, nil
 }
 
@@ -88,9 +92,30 @@ func (p *DeterministicProvider) Embedding(_ context.Context, request EmbeddingRe
 	}
 
 	return EmbeddingResult{
-		Vector: HashEmbeddingText(request.FileName+" "+model, 24),
+		Vector: HashEmbeddingText(request.FileName+" "+model, 1536),
 		RawID:  fmt.Sprintf("%s:embedding:%s", p.name, request.AssetID),
+		Metadata: InvocationMetadata{
+			ModelProfile: firstNonEmptyTrimmed(request.Model, "default"),
+			Model:        model,
+		},
 	}, nil
+}
+
+func (p *DeterministicProvider) ResolveModelProfile(_ Capability, requestedProfile string) InvocationMetadata {
+	profile := firstNonEmptyTrimmed(requestedProfile, "default")
+	return InvocationMetadata{
+		ModelProfile: profile,
+		Model:        p.model,
+	}
+}
+
+func firstNonEmptyTrimmed(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func fallback(value string, defaultValue string) string {

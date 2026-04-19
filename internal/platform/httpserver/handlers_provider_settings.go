@@ -200,10 +200,14 @@ func (s *Server) swapPrimaryProvider(ctx context.Context, providerCfg config.Obj
 
 	var newEnrichment *enrichment.Service
 	if s.enrich != nil {
+		aiProviders, err := buildAIProviders(s.cfg.AIProviders)
+		if err != nil {
+			return err
+		}
 		newEnrichment, err = enrichment.NewService(enrichment.ServiceConfig{
 			Repository:          repository,
 			Storage:             provider,
-			AIProviders:         buildAIProviders(s.cfg.AIProviders),
+			AIProviders:         aiProviders,
 			Queue:               s.enrich.Queue(),
 			DownloadTTL:         s.cfg.Security.DownloadCredentialTTL,
 			DebugRetention:      s.cfg.Security.DebugRetention,

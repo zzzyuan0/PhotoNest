@@ -166,6 +166,12 @@ func TestImportEndpointsCloseTheUploadLoop(t *testing.T) {
 	if detailRecorder.Code != http.StatusOK {
 		t.Fatalf("asset detail expected 200, got %d: %s", detailRecorder.Code, detailRecorder.Body.String())
 	}
+	if !strings.Contains(detailRecorder.Body.String(), `"searchReady":false`) {
+		t.Fatalf("expected newly accepted asset detail to expose searchReady=false, got %s", detailRecorder.Body.String())
+	}
+	if !strings.Contains(timelineRecorder.Body.String(), `"searchReady":false`) {
+		t.Fatalf("expected timeline to keep visible upload state before recognition finishes, got %s", timelineRecorder.Body.String())
+	}
 
 	downloadRecorder := httptest.NewRecorder()
 	downloadRequest := httptest.NewRequest(http.MethodPost, "/api/v1/assets/"+assetID+"/download?libraryId=11111111-1111-1111-1111-111111111111", strings.NewReader(`{}`))
@@ -188,6 +194,22 @@ func TestImportEndpointsCloseTheUploadLoop(t *testing.T) {
 	}
 	if url, _ := grant["url"].(string); !strings.Contains(url, "memory://") {
 		t.Fatalf("expected short-lived memory url, got %v", grant["url"])
+	}
+
+	previewRecorder := httptest.NewRecorder()
+	previewRequest := httptest.NewRequest(http.MethodGet, "/api/v1/assets/"+assetID+"/preview?libraryId=11111111-1111-1111-1111-111111111111", nil)
+	for _, cookie := range cookies {
+		previewRequest.AddCookie(cookie)
+	}
+	handler.ServeHTTP(previewRecorder, previewRequest)
+	if previewRecorder.Code != http.StatusOK {
+		t.Fatalf("preview expected 200, got %d: %s", previewRecorder.Code, previewRecorder.Body.String())
+	}
+	if got := previewRecorder.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("expected preview content type image/png, got %q", got)
+	}
+	if previewRecorder.Body.Len() == 0 {
+		t.Fatal("expected preview body to contain image bytes")
 	}
 }
 

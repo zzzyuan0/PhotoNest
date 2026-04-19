@@ -8,7 +8,7 @@ PhotoNest 是一个面向个人分散照片库的照片管理平台，目标是�
 
 - 统一导入照片和视频资产，形成稳定的主照片库
 - 抽象对象存储 Provider，避免绑定单一云厂商
-- 抽象 AI Provider，统一 caption、OCR、embedding 等识别结果
+- 抽象 AI Provider，统一 caption、OCR、语义标签与 embedding 等识别结果
 - 建立异步处理流水线，补齐 EXIF、地点、标签、描述与索引
 - 提供时间线、地点浏览、自然语言搜索、重复照片审查等发现能力
 - 提供独立备份、导出与恢复路径，降低照片资产丢失风险
@@ -89,6 +89,8 @@ PhotoNest 是一个面向个人分散照片库的照片管理平台，目标是�
 
 - 默认对象存储示例配置在 [config/examples/app.yaml](./config/examples/app.yaml)，用于直接接入腾讯云 COS。
 - 如果需要无云账号联调，可先执行 `make up-sim`，再把 `PHOTONEST_CONFIG` 指向 `./config/examples/app.object-sim.yaml`，通过 MinIO 走 `s3-compatible` 适配路径。
+- `openai-compatible` AI Provider 现在支持 `modelProfile + models` 映射。
+  推荐把 `default` 指向正式识别模型，把 `budget` 指向低成本补跑模型；当远程视觉能力不可用时，可切回 `deterministic` provider 继续联调，但结果只用于演示与测试。
 - Go 本地工具链与缓存默认收敛到 `home` 目录下的 `/home/root/.local/go`、`/home/root/.local/share/photonest/go`、`/home/root/.cache/photonest/go-build` 和 `/home/root/.config/go/env`，避免把编译数据写到仓库目录或系统级临时位置；开发脚本不再自动回退到 Docker Go 镜像。
 
 ### 一键启动

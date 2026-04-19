@@ -214,6 +214,16 @@ func TestHTTPFlowPersistsUploadAndWorkerConsumptionWithPostgresAndRedis(t *testi
 	if !strings.Contains(detailRecorder.Body.String(), `"processingStage":"indexed"`) {
 		t.Fatalf("expected asset detail to reflect indexed stage after worker consumption, got %s", detailRecorder.Body.String())
 	}
+	for _, required := range []string{
+		`"searchReady":true`,
+		`"locationLabel":`,
+		`"tags":[`,
+		`"captionPreview":`,
+	} {
+		if !strings.Contains(detailRecorder.Body.String(), required) {
+			t.Fatalf("expected asset detail to contain %s, got %s", required, detailRecorder.Body.String())
+		}
+	}
 }
 
 func mustDiscoveryWithRepository(repository *persistence.PostgresRepository, provider storage.Provider) (*discovery.Service, error) {

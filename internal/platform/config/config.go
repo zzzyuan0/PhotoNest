@@ -78,16 +78,18 @@ type ObjectStorageProviderConfig struct {
 }
 
 type AIProviderConfig struct {
-	Name              string        `yaml:"name"`
-	Kind              string        `yaml:"kind"`
-	Endpoint          string        `yaml:"endpoint"`
-	Model             string        `yaml:"model"`
-	Capabilities      []string      `yaml:"capabilities"`
-	Token             SecretValue   `yaml:"token"`
-	Timeout           time.Duration `yaml:"timeout"`
-	AllowRemote       bool          `yaml:"allowRemote"`
-	ExecutionBoundary string        `yaml:"executionBoundary"`
-	HealthCheckURL    string        `yaml:"healthCheckURL"`
+	Name              string            `yaml:"name"`
+	Kind              string            `yaml:"kind"`
+	Endpoint          string            `yaml:"endpoint"`
+	Model             string            `yaml:"model"`
+	ModelProfile      string            `yaml:"modelProfile"`
+	Models            map[string]string `yaml:"models"`
+	Capabilities      []string          `yaml:"capabilities"`
+	Token             SecretValue       `yaml:"token"`
+	Timeout           time.Duration     `yaml:"timeout"`
+	AllowRemote       bool              `yaml:"allowRemote"`
+	ExecutionBoundary string            `yaml:"executionBoundary"`
+	HealthCheckURL    string            `yaml:"healthCheckURL"`
 }
 
 type TelemetryConfig struct {
@@ -99,24 +101,24 @@ type TelemetryConfig struct {
 }
 
 type SecurityConfig struct {
-	CSRFEnabled              bool          `yaml:"csrfEnabled"`
-	RecentAuthWindow         time.Duration `yaml:"recentAuthWindow"`
-	UploadCredentialTTL      time.Duration `yaml:"uploadCredentialTTL"`
-	DownloadCredentialTTL    time.Duration `yaml:"downloadCredentialTTL"`
-	DebugRetention           time.Duration `yaml:"debugRetention"`
-	StrictPrivateObjectCheck bool          `yaml:"strictPrivateObjectCheck"`
-	Session                  SessionConfig `yaml:"session"`
+	CSRFEnabled              bool                `yaml:"csrfEnabled"`
+	RecentAuthWindow         time.Duration       `yaml:"recentAuthWindow"`
+	UploadCredentialTTL      time.Duration       `yaml:"uploadCredentialTTL"`
+	DownloadCredentialTTL    time.Duration       `yaml:"downloadCredentialTTL"`
+	DebugRetention           time.Duration       `yaml:"debugRetention"`
+	StrictPrivateObjectCheck bool                `yaml:"strictPrivateObjectCheck"`
+	Session                  SessionConfig       `yaml:"session"`
 	BootstrapAuth            BootstrapAuthConfig `yaml:"bootstrapAuth"`
 }
 
 type SessionConfig struct {
-	CookieName     string      `yaml:"cookieName"`
-	CSRFCookieName string      `yaml:"csrfCookieName"`
-	CSRFHeaderName string      `yaml:"csrfHeaderName"`
-	SigningKey     SecretValue `yaml:"signingKey"`
+	CookieName     string        `yaml:"cookieName"`
+	CSRFCookieName string        `yaml:"csrfCookieName"`
+	CSRFHeaderName string        `yaml:"csrfHeaderName"`
+	SigningKey     SecretValue   `yaml:"signingKey"`
 	MaxAge         time.Duration `yaml:"maxAge"`
-	SecureCookies  bool        `yaml:"secureCookies"`
-	SameSite       string      `yaml:"sameSite"`
+	SecureCookies  bool          `yaml:"secureCookies"`
+	SameSite       string        `yaml:"sameSite"`
 }
 
 type BootstrapAuthConfig struct {
@@ -186,6 +188,9 @@ func (c *AppConfig) applyDefaults() {
 	c.StorageProviders.Primary.applyDefaults()
 	for i := range c.StorageProviders.Backup {
 		c.StorageProviders.Backup[i].applyDefaults()
+	}
+	for i := range c.AIProviders {
+		c.AIProviders[i].applyDefaults()
 	}
 	if c.Telemetry.LogLevel == "" {
 		c.Telemetry.LogLevel = "info"
@@ -383,13 +388,13 @@ func (c DatabaseConfig) RedactedSummary(ctx context.Context) (map[string]any, er
 	}
 
 	return map[string]any{
-		"address":       c.Address(),
-		"name":          c.Name,
-		"user":          c.User,
-		"sslMode":       c.SSLMode,
-		"dsn":           maskConnectionString(dsn),
-		"maxOpenConns":  c.MaxOpenConns,
-		"maxIdleConns":  c.MaxIdleConns,
+		"address":        c.Address(),
+		"name":           c.Name,
+		"user":           c.User,
+		"sslMode":        c.SSLMode,
+		"dsn":            maskConnectionString(dsn),
+		"maxOpenConns":   c.MaxOpenConns,
+		"maxIdleConns":   c.MaxIdleConns,
 		"passwordSource": c.Password.Summary(),
 	}, nil
 }
@@ -484,6 +489,8 @@ func (c AIProviderConfig) RedactedSummary(ctx context.Context) (map[string]any, 
 		"kind":              c.Kind,
 		"endpoint":          c.Endpoint,
 		"model":             c.Model,
+		"modelProfile":      c.ModelProfile,
+		"models":            c.Models,
 		"capabilities":      c.Capabilities,
 		"timeout":           c.Timeout.String(),
 		"allowRemote":       c.AllowRemote,
@@ -497,8 +504,8 @@ func (c AIProviderConfig) ValidateLeastPrivilege() error {
 	switch {
 	case strings.TrimSpace(c.Name) == "":
 		return fmt.Errorf("name is required")
-	case strings.TrimSpace(c.Endpoint) == "":
-		return fmt.Errorf("endpoint is required")
+	case strings.TrimSpace(c.Kind) == "":
+		return fmt.Errorf("kind is required")
 	case len(c.Capabilities) == 0:
 		return fmt.Errorf("at least one capability is required")
 	case c.Timeout <= 0 || c.Timeout > 2*time.Minute:
@@ -507,6 +514,16 @@ func (c AIProviderConfig) ValidateLeastPrivilege() error {
 		return fmt.Errorf("executionBoundary is required")
 	case c.ExecutionBoundary == "remote-service" && !c.AllowRemote:
 		return fmt.Errorf("remote-service boundary requires allowRemote=true")
+	case strings.EqualFold(strings.TrimSpace(c.Kind), "openai-compatible") && strings.TrimSpace(c.Endpoint) == "":
+		return fmt.Errorf("endpoint is required")
+	case strings.EqualFold(strings.TrimSpace(c.Kind), "openai-compatible") && !c.Token.IsConfigured():
+		return fmt.Errorf("token is required")
+	case strings.TrimSpace(c.ModelProfile) == "":
+		return fmt.Errorf("modelProfile is required")
+	case len(c.Models) == 0:
+		return fmt.Errorf("at least one model mapping is required")
+	case strings.TrimSpace(c.Models[c.ModelProfile]) == "":
+		return fmt.Errorf("modelProfile %q must map to a model", c.ModelProfile)
 	default:
 		return nil
 	}
@@ -540,5 +557,25 @@ func (c *ObjectStorageProviderConfig) applyDefaults() {
 	}
 	if kind == "s3-compatible" {
 		c.ForcePathStyle = true
+	}
+}
+
+func (c *AIProviderConfig) applyDefaults() {
+	if strings.TrimSpace(c.Kind) == "" {
+		c.Kind = "deterministic"
+	}
+	if c.Timeout == 0 {
+		c.Timeout = 20 * time.Second
+	}
+	if strings.TrimSpace(c.ModelProfile) == "" {
+		c.ModelProfile = "default"
+	}
+	if len(c.Models) == 0 && strings.TrimSpace(c.Model) != "" {
+		c.Models = map[string]string{
+			c.ModelProfile: strings.TrimSpace(c.Model),
+		}
+	}
+	if strings.TrimSpace(c.HealthCheckURL) == "" && strings.TrimSpace(c.Endpoint) != "" {
+		c.HealthCheckURL = strings.TrimRight(strings.TrimSpace(c.Endpoint), "/") + "/models"
 	}
 }

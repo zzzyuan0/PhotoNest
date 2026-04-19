@@ -82,8 +82,11 @@ storageProviders:
 aiProviders:
   - name: remote-openai
     kind: openai-compatible
-    endpoint: https://api.openai.com/v1
-    model: gpt-4.1-mini
+    endpoint: ${PHOTONEST_AI_OPENAI_ENDPOINT:-https://api.openai.com/v1}
+    modelProfile: ${PHOTONEST_AI_MODEL_PROFILE:-default}
+    models:
+      budget: ${PHOTONEST_AI_MODEL_BUDGET:-gpt-4.1-mini}
+      default: ${PHOTONEST_AI_MODEL_DEFAULT:-gpt-4.1-mini}
     capabilities:
       - caption
       - ocr
@@ -93,7 +96,7 @@ aiProviders:
     timeout: 20s
     allowRemote: true
     executionBoundary: remote-service
-    healthCheckURL: https://api.openai.com/v1/models
+    healthCheckURL: ${PHOTONEST_AI_HEALTHCHECK_URL:-${PHOTONEST_AI_OPENAI_ENDPOINT:-https://api.openai.com/v1}/models}
 
 telemetry:
   logLevel: info

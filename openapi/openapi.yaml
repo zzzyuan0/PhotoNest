@@ -937,7 +937,7 @@ components:
             ]
     AssetSummary:
       type: object
-      required: [assetId, mediaType, timelineTimestamp, processingStage, backupStatus]
+      required: [assetId, mediaType, timelineTimestamp, processingStage, backupStatus, searchReady]
       properties:
         assetId:
           type: string
@@ -954,6 +954,22 @@ components:
         thumbnailToken:
           type: string
         captionPreview:
+          type: string
+        ocrPreview:
+          type: string
+        locationLabel:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        semanticTags:
+          type: array
+          items:
+            type: string
+        searchReady:
+          type: boolean
+        recognitionStatusNote:
           type: string
     TimelineResponse:
       type: object
@@ -1030,7 +1046,7 @@ components:
           $ref: '#/components/schemas/CursorPageInfo'
     AssetDetail:
       type: object
-      required: [assetId, libraryId, mediaType, processingStage, backupStatus]
+      required: [assetId, libraryId, mediaType, processingStage, backupStatus, searchReady]
       properties:
         assetId:
           type: string
@@ -1049,7 +1065,23 @@ components:
           type: string
         captionPreview:
           type: string
+        ocrPreview:
+          type: string
         thumbnailToken:
+          type: string
+        locationLabel:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        semanticTags:
+          type: array
+          items:
+            type: string
+        searchReady:
+          type: boolean
+        recognitionStatusNote:
           type: string
     AlbumSummary:
       type: object

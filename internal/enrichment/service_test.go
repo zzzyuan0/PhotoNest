@@ -602,7 +602,7 @@ func (p *flakyEmbeddingProvider) Embedding(_ context.Context, request providerai
 		return providerai.EmbeddingResult{}, errors.New("temporary embedding outage")
 	}
 	return providerai.EmbeddingResult{
-		Vector: providerai.HashEmbeddingText(request.FileName, 24),
+		Vector: providerai.HashEmbeddingText(request.FileName, 1536),
 		RawID:  "retry-success",
 	}, nil
 }

@@ -248,16 +248,16 @@ func (r *PostgresRepository) CreateAsset(ctx context.Context, record asset.Asset
 		INSERT INTO assets (
 			id, library_id, media_type, original_filename, content_sha256, perceptual_hash, imported_at,
 			captured_at, timeline_at, processing_stage, backup_status, width, height, duration_ms,
-			gps_latitude, gps_longitude, location_label, caption_text, ocr_text, search_document,
-			search_embedding, indexed_at, embedding, is_duplicate_exact, duplicate_candidate_of, updated_at
+			gps_latitude, gps_longitude, location_label, caption_text, ocr_text, tags, search_document,
+			search_embedding, indexed_at, embedding, recognition_status_note, is_duplicate_exact, duplicate_candidate_of, updated_at
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-			NULLIF($21, '')::vector,$22,NULLIF($23, '')::vector,$24,$25,$26
+			COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
+			NULLIF($22, '')::vector,$23,NULLIF($24, '')::vector,$25,$26,NULLIF($27, '')::uuid,$28
 		)
 		RETURNING id, library_id, media_type, original_filename, content_sha256, perceptual_hash, imported_at,
 			captured_at, timeline_at, processing_stage, backup_status, width, height, duration_ms,
-			gps_latitude, gps_longitude, location_label, caption_text, ocr_text, search_document,
-			search_embedding::text, indexed_at, embedding::text, is_duplicate_exact, duplicate_candidate_of
+			gps_latitude, gps_longitude, location_label, caption_text, ocr_text, tags, search_document,
+			search_embedding::text, indexed_at, embedding::text, recognition_status_note, is_duplicate_exact, duplicate_candidate_of
 	`
 	scanned, err := scanAsset(r.db.QueryRowContext(ctx, query,
 		record.ID,
@@ -279,10 +279,12 @@ func (r *PostgresRepository) CreateAsset(ctx context.Context, record asset.Asset
 		nullString(record.LocationLabel),
 		nullString(record.CaptionText),
 		nullString(record.OCRText),
+		defaultStringSlice(record.Tags),
 		record.SearchDocument,
 		vectorLiteral(record.SearchEmbedding),
 		nullTime(record.IndexedAt),
 		vectorLiteral(record.Embedding),
+		nullString(record.RecognitionStatusNote),
 		record.IsDuplicateExact,
 		nullString(record.DuplicateCandidateOf),
 		time.Now().UTC(),
@@ -299,9 +301,9 @@ func (r *PostgresRepository) SaveAsset(ctx context.Context, record asset.Asset) 
 		SET media_type = $2, original_filename = $3, content_sha256 = $4, perceptual_hash = $5,
 			imported_at = $6, captured_at = $7, timeline_at = $8, processing_stage = $9, backup_status = $10,
 			width = $11, height = $12, duration_ms = $13, gps_latitude = $14, gps_longitude = $15,
-			location_label = $16, caption_text = $17, ocr_text = $18, search_document = $19,
-			search_embedding = NULLIF($20, '')::vector, indexed_at = $21, embedding = NULLIF($22, '')::vector,
-			is_duplicate_exact = $23, duplicate_candidate_of = $24, updated_at = $25
+			location_label = $16, caption_text = $17, ocr_text = $18, tags = $19, search_document = $20,
+			search_embedding = NULLIF($21, '')::vector, indexed_at = $22, embedding = NULLIF($23, '')::vector,
+			recognition_status_note = $24, is_duplicate_exact = $25, duplicate_candidate_of = NULLIF($26, '')::uuid, updated_at = $27
 		WHERE id = $1
 	`
 	result, err := r.db.ExecContext(ctx, query,
@@ -323,10 +325,12 @@ func (r *PostgresRepository) SaveAsset(ctx context.Context, record asset.Asset) 
 		nullString(record.LocationLabel),
 		nullString(record.CaptionText),
 		nullString(record.OCRText),
+		defaultStringSlice(record.Tags),
 		record.SearchDocument,
 		vectorLiteral(record.SearchEmbedding),
 		nullTime(record.IndexedAt),
 		vectorLiteral(record.Embedding),
+		nullString(record.RecognitionStatusNote),
 		record.IsDuplicateExact,
 		nullString(record.DuplicateCandidateOf),
 		time.Now().UTC(),
@@ -341,8 +345,8 @@ func (r *PostgresRepository) GetAsset(ctx context.Context, assetID string) (asse
 	const query = `
 		SELECT id, library_id, media_type, original_filename, content_sha256, perceptual_hash, imported_at,
 			captured_at, timeline_at, processing_stage, backup_status, width, height, duration_ms,
-			gps_latitude, gps_longitude, location_label, caption_text, ocr_text, search_document,
-			search_embedding::text, indexed_at, embedding::text, is_duplicate_exact, duplicate_candidate_of
+			gps_latitude, gps_longitude, location_label, caption_text, ocr_text, tags, search_document,
+			search_embedding::text, indexed_at, embedding::text, recognition_status_note, is_duplicate_exact, duplicate_candidate_of
 		FROM assets
 		WHERE id = $1
 	`
@@ -360,8 +364,8 @@ func (r *PostgresRepository) FindAssetByContentSHA(ctx context.Context, libraryI
 	const query = `
 		SELECT id, library_id, media_type, original_filename, content_sha256, perceptual_hash, imported_at,
 			captured_at, timeline_at, processing_stage, backup_status, width, height, duration_ms,
-			gps_latitude, gps_longitude, location_label, caption_text, ocr_text, search_document,
-			search_embedding::text, indexed_at, embedding::text, is_duplicate_exact, duplicate_candidate_of
+			gps_latitude, gps_longitude, location_label, caption_text, ocr_text, tags, search_document,
+			search_embedding::text, indexed_at, embedding::text, recognition_status_note, is_duplicate_exact, duplicate_candidate_of
 		FROM assets
 		WHERE library_id = $1 AND content_sha256 = $2
 	`
@@ -379,8 +383,8 @@ func (r *PostgresRepository) ListAssetsByLibrary(ctx context.Context, libraryID 
 	const query = `
 		SELECT id, library_id, media_type, original_filename, content_sha256, perceptual_hash, imported_at,
 			captured_at, timeline_at, processing_stage, backup_status, width, height, duration_ms,
-			gps_latitude, gps_longitude, location_label, caption_text, ocr_text, search_document,
-			search_embedding::text, indexed_at, embedding::text, is_duplicate_exact, duplicate_candidate_of
+			gps_latitude, gps_longitude, location_label, caption_text, ocr_text, tags, search_document,
+			search_embedding::text, indexed_at, embedding::text, recognition_status_note, is_duplicate_exact, duplicate_candidate_of
 		FROM assets
 		WHERE library_id = $1
 		ORDER BY timeline_at DESC, imported_at DESC
@@ -471,7 +475,7 @@ func (r *PostgresRepository) SaveRecognitionRun(ctx context.Context, run asset.R
 		INSERT INTO recognition_stage_runs (
 			id, asset_id, stage, provider_name, status, policy_reason, attempts, last_error,
 			started_at, finished_at, debug_expires_at, debug_payload
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+		) VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 		ON CONFLICT (asset_id, stage) DO UPDATE
 		SET provider_name = EXCLUDED.provider_name,
 			status = EXCLUDED.status,
@@ -680,7 +684,13 @@ func (r *PostgresRepository) CreateAlbum(ctx context.Context, album discovery.Al
 	}
 	const query = `
 		INSERT INTO albums (id, library_id, slug, display_name, kind, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6)
+		VALUES (
+			CASE
+				WHEN NULLIF($1, '') IS NULL THEN gen_random_uuid()
+				ELSE $1::uuid
+			END,
+			$2,$3,$4,$5,$6
+		)
 		RETURNING id, library_id, slug, display_name, kind, created_at
 	`
 	record := discovery.Album{}
@@ -842,7 +852,7 @@ func scanItems(rows *sql.Rows) ([]ingestion.ImportItem, error) {
 
 func scanAsset(row scanner) (asset.Asset, error) {
 	var record asset.Asset
-	var perceptualHash, locationLabel, captionText, ocrText, duplicateCandidate sql.NullString
+	var perceptualHash, locationLabel, captionText, ocrText, tags, recognitionStatusNote, duplicateCandidate sql.NullString
 	var capturedAt, indexedAt sql.NullTime
 	var gpsLatitude, gpsLongitude sql.NullFloat64
 	var searchEmbedding, embedding sql.NullString
@@ -866,10 +876,12 @@ func scanAsset(row scanner) (asset.Asset, error) {
 		&locationLabel,
 		&captionText,
 		&ocrText,
+		&tags,
 		&record.SearchDocument,
 		&searchEmbedding,
 		&indexedAt,
 		&embedding,
+		&recognitionStatusNote,
 		&record.IsDuplicateExact,
 		&duplicateCandidate,
 	)
@@ -877,6 +889,8 @@ func scanAsset(row scanner) (asset.Asset, error) {
 	record.LocationLabel = locationLabel.String
 	record.CaptionText = captionText.String
 	record.OCRText = ocrText.String
+	record.Tags = parseTextArray(tags.String)
+	record.RecognitionStatusNote = recognitionStatusNote.String
 	record.DuplicateCandidateOf = duplicateCandidate.String
 	record.SearchEmbedding = parseVector(searchEmbedding.String)
 	record.Embedding = parseVector(embedding.String)
@@ -970,6 +984,34 @@ func nullString(value string) any {
 		return nil
 	}
 	return strings.TrimSpace(value)
+}
+
+func defaultStringSlice(values []string) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+	return append([]string(nil), values...)
+}
+
+func parseTextArray(value string) []string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" || trimmed == "{}" {
+		return []string{}
+	}
+	trimmed = strings.TrimPrefix(trimmed, "{")
+	trimmed = strings.TrimSuffix(trimmed, "}")
+	if strings.TrimSpace(trimmed) == "" {
+		return []string{}
+	}
+	parts := strings.Split(trimmed, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.Trim(part, `"`)
+		if item := strings.TrimSpace(part); item != "" {
+			values = append(values, item)
+		}
+	}
+	return values
 }
 
 func nullTime(value *time.Time) any {

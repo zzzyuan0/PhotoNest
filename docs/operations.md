@@ -157,6 +157,7 @@ COS/模拟器的跨域配置示例位于：
 
 - 默认保持 `gpsMode=owner-only`
 - 对敏感照片库或相册关闭远程 OCR、caption、embedding
+- 为真实视觉识别配置 `modelProfile` 与 `models`，至少保留 `default` 和 `budget` 两档，便于线上默认识别与历史批量补跑分离
 - 不要把原始 GPS、完整 OCR 文本和 Provider 原始回包作为普通排障数据长期保留
 
 ## 6. 密钥治理
