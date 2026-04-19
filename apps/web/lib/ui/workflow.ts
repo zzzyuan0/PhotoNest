@@ -17,7 +17,19 @@ export type PreviewableAsset = {
   thumbnailToken?: string;
 };
 
+export type RecognizableAsset = PreviewableAsset & {
+  captionPreview?: string;
+  ocrPreview?: string;
+  locationLabel?: string;
+  tags?: string[];
+  semanticTags?: string[];
+  searchReady?: boolean;
+  recognitionStatusNote?: string;
+};
+
 export type PreviewTone = 'ready' | 'processing' | 'warning';
+
+export type ActionFeedbackTone = 'info' | 'success' | 'warning' | 'danger';
 
 export function describeProcessingStage(value: string) {
   switch (value) {
@@ -26,13 +38,13 @@ export function describeProcessingStage(value: string) {
     case 'stored':
       return '已入库';
     case 'derivatives-ready':
-      return '预览已准备';
+      return '预览准备中';
     case 'metadata-ready':
-      return '元数据整理中';
+      return '基础整理已完成';
     case 'ai-ready':
-      return 'AI 结果已就绪';
+      return '识别结果已生成';
     case 'indexed':
-      return '已可搜索';
+      return '已可搜索与整理';
     case 'partial-failure':
       return '需要人工留意';
     default:
@@ -44,10 +56,13 @@ export function describeBackupStatus(value: string) {
   switch (value) {
     case 'pending':
       return '备份排队中';
+    case 'verified':
     case 'completed':
       return '已备份';
     case 'failed':
-      return '备份异常';
+      return '备份待处理';
+    case '':
+      return '暂无备份信息';
     default:
       return value.replaceAll('-', ' ');
   }
@@ -153,6 +168,139 @@ export function describePreviewState(item: PreviewableAsset): {
     tone: 'processing',
     label: '正在准备预览',
     detail: '照片已经入库，系统仍在生成缩略图和后续处理结果。',
+  };
+}
+
+export function describeActionUnavailable(
+  requirement: 'session' | 'library' | 'files' | 'album' | 'credentials',
+) {
+  switch (requirement) {
+    case 'session':
+      return '请先完成登录，再执行这个动作。';
+    case 'library':
+      return '请先填写或确认一个可访问的 library ID。';
+    case 'files':
+      return '请先选择至少一个照片文件，再开始导入。';
+    case 'album':
+      return '请先选中一个当前相册，再把照片加入进去。';
+    case 'credentials':
+      return '请先填写用户名和密码，再提交登录。';
+  }
+}
+
+export function describeRecognitionState(item: RecognizableAsset): {
+  tone: ActionFeedbackTone;
+  label: string;
+  detail: string;
+} {
+  switch (item.processingStage) {
+    case 'accepted':
+    case 'stored':
+      return {
+        tone: 'info',
+        label: '刚入库',
+        detail: '照片已经被系统接收，预览和后续识别仍会继续准备。',
+      };
+    case 'derivatives-ready':
+      return {
+        tone: 'info',
+        label: '预览准备中',
+        detail: '照片已经出现在照片库里，缩略图和基础可见性已经就位，识别分类还在后台继续。',
+      };
+    case 'metadata-ready':
+      return {
+        tone: 'info',
+        label: '识别进行中',
+        detail: '拍摄时间、设备或地点等基础信息已经补齐，caption、OCR 和搜索准备仍在继续。',
+      };
+    case 'ai-ready':
+      return {
+        tone: 'success',
+        label: '识别结果已生成',
+        detail: 'caption、OCR 或标签等结果已经可见，系统正在把这些结果整理进搜索和浏览入口。',
+      };
+    case 'indexed':
+      return {
+        tone: 'success',
+        label: '已可搜索',
+        detail: '这张照片已经完成当前版本的整理闭环，可以通过搜索、地点、收藏或相册继续查找。',
+      };
+    case 'partial-failure':
+      return {
+        tone: 'warning',
+        label: '部分失败',
+        detail:
+          item.recognitionStatusNote && item.recognitionStatusNote.trim() !== ''
+            ? `照片仍然保留在列表中，但有部分识别阶段失败：${item.recognitionStatusNote}。`
+            : '照片仍然保留在列表中，但部分识别阶段失败，建议稍后留意结果是否补齐。',
+      };
+    default:
+      return {
+        tone: 'info',
+        label: describeProcessingStage(item.processingStage),
+        detail: '系统仍在继续推进这张照片的可见结果。',
+      };
+  }
+}
+
+export function describeSearchStatus(
+  item: Pick<RecognizableAsset, 'searchReady' | 'processingStage'>,
+) {
+  if (item.searchReady) {
+    return '搜索已就绪，可以直接在上方搜索框中找到这张照片。';
+  }
+  if (item.processingStage === 'partial-failure') {
+    return '搜索整理受部分失败影响，结果可能不完整，但照片仍保留在当前列表。';
+  }
+  return '搜索整理仍在后台继续，等状态推进到“已可搜索与整理”后会更稳定。';
+}
+
+export function collectVisibleClassification(item: RecognizableAsset) {
+  const entries: Array<{ label: string; value: string }> = [];
+
+  if (item.locationLabel) {
+    entries.push({ label: '地点', value: item.locationLabel });
+  }
+  if (item.captionPreview) {
+    entries.push({ label: '描述', value: item.captionPreview });
+  }
+  if (item.ocrPreview) {
+    entries.push({ label: '文字识别', value: item.ocrPreview });
+  }
+  if (item.semanticTags?.length) {
+    entries.push({ label: '语义标签', value: item.semanticTags.join(' / ') });
+  } else if (item.tags?.length) {
+    entries.push({ label: '标签', value: item.tags.join(' / ') });
+  }
+  entries.push({ label: '搜索准备', value: item.searchReady ? '已可搜索' : '仍在整理中' });
+
+  return entries;
+}
+
+export function buildImportCompletionSummary(input: {
+  completedCount: number;
+  failedCount: number;
+  importedAssetIds: string[];
+}) {
+  const importedCount = input.importedAssetIds.length;
+  const focusTarget = input.importedAssetIds.at(-1) ?? '';
+
+  if (input.failedCount > 0) {
+    return {
+      tone: 'warning' as const,
+      title: '本轮导入已结束，已成功入库的照片现在可以查看。',
+      detail: `成功 ${input.completedCount} 个，需留意 ${input.failedCount} 个。已成功的照片已经进入照片库，识别分类会继续在后台推进。`,
+      focusTarget,
+      cta: importedCount > 0 ? '前往照片库查看已成功入库的照片' : '继续留在导入页检查失败项',
+    };
+  }
+
+  return {
+    tone: 'success' as const,
+    title: '照片已入库，可立即去照片库查看。',
+    detail: `本轮成功导入 ${input.completedCount} 个文件。它们已经进入照片库，caption、地点、搜索整理等识别分类结果仍可能继续在后台生成。`,
+    focusTarget,
+    cta: importedCount > 0 ? '前往照片库查看本轮新照片' : '前往照片库',
   };
 }
 

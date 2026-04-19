@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 
 import { apiFetch, type AuthSessionResponse } from '../lib/api/client';
+import { describeActionUnavailable } from '../lib/ui/workflow';
 
 const form = reactive({
   username: 'admin',
@@ -19,6 +20,15 @@ const hasSession = computed(() => session.value !== null);
 const canSubmit = computed(
   () => pendingAction.value === null && form.username.trim() !== '' && form.password.trim() !== '',
 );
+const submitHint = computed(() => {
+  if (pendingAction.value !== null) {
+    return '当前正在处理登录或读取会话，请稍候。';
+  }
+  if (form.username.trim() === '' || form.password.trim() === '') {
+    return describeActionUnavailable('credentials');
+  }
+  return '提交后会立即反馈登录结果，并在下方展示当前会话摘要。';
+});
 const sessionLibraries = computed(() =>
   session.value?.libraryIds.length ? session.value.libraryIds.join(', ') : '由当前角色自动决定',
 );
@@ -162,6 +172,7 @@ onMounted(async () => {
         <p class="status-copy">
           登录成功后，这里会展示你当前的身份摘要，并给出进入照片库或导入页的下一步入口。
         </p>
+        <p class="status-copy">{{ submitHint }}</p>
 
         <p v-if="error" class="alert-banner" data-tone="danger">{{ error }}</p>
         <p v-else-if="loginSucceeded" class="alert-banner" data-tone="success">

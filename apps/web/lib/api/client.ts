@@ -28,7 +28,7 @@ export type ApiFetchOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;
 };
 
-function resolveApiBaseURL(configuredBaseURL: string): string {
+export function resolveApiBaseURL(configuredBaseURL: string): string {
   if (!import.meta.client) {
     return configuredBaseURL;
   }
@@ -54,6 +54,17 @@ function resolveApiBaseURL(configuredBaseURL: string): string {
   parsed.hostname = window.location.hostname;
   parsed.port = '8080';
   return parsed.toString().replace(/\/$/, '');
+}
+
+export function buildApiURL(path: string): string {
+  const config = useRuntimeConfig();
+  const baseURL = resolveApiBaseURL(config.public.apiBaseURL);
+
+  if (!import.meta.client) {
+    return path;
+  }
+
+  return new URL(path, `${baseURL.replace(/\/$/, '')}/`).toString();
 }
 
 export async function apiFetch<T>(path: string, init?: ApiFetchOptions): Promise<T> {

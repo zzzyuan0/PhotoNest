@@ -2,8 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildAssetEmptyState,
+  buildImportCompletionSummary,
+  collectVisibleClassification,
+  describeActionUnavailable,
+  describeBackupStatus,
   describePreviewState,
   describeProcessingStage,
+  describeRecognitionState,
+  describeSearchStatus,
   describeUploadStatus,
   pickNextSelectedAsset,
   summarizeUploadQueue,
@@ -85,7 +91,87 @@ describe('workflow helpers', () => {
   });
 
   it('keeps stage labels task-oriented', () => {
-    expect(describeProcessingStage('metadata-ready')).toBe('元数据整理中');
-    expect(describeProcessingStage('ai-ready')).toBe('AI 结果已就绪');
+    expect(describeProcessingStage('metadata-ready')).toBe('基础整理已完成');
+    expect(describeProcessingStage('ai-ready')).toBe('识别结果已生成');
+  });
+
+  it('describes backup states without overstating temporary failures', () => {
+    expect(describeBackupStatus('pending')).toBe('备份排队中');
+    expect(describeBackupStatus('verified')).toBe('已备份');
+    expect(describeBackupStatus('failed')).toBe('备份待处理');
+  });
+
+  it('explains unavailable actions close to the triggering control', () => {
+    expect(describeActionUnavailable('album')).toBe('请先选中一个当前相册，再把照片加入进去。');
+    expect(describeActionUnavailable('credentials')).toBe('请先填写用户名和密码，再提交登录。');
+  });
+
+  it('summarizes import completion without pretending recognition already finished', () => {
+    expect(
+      buildImportCompletionSummary({
+        completedCount: 2,
+        failedCount: 0,
+        importedAssetIds: ['a-1', 'a-2'],
+      }),
+    ).toMatchObject({
+      tone: 'success',
+      focusTarget: 'a-2',
+    });
+
+    expect(
+      buildImportCompletionSummary({
+        completedCount: 1,
+        failedCount: 1,
+        importedAssetIds: ['a-1'],
+      }),
+    ).toMatchObject({
+      tone: 'warning',
+      cta: '前往照片库查看已成功入库的照片',
+    });
+  });
+
+  it('turns backend stages into stable user-facing recognition states', () => {
+    expect(describeRecognitionState({ processingStage: 'derivatives-ready' })).toMatchObject({
+      tone: 'info',
+      label: '预览准备中',
+    });
+    expect(
+      describeRecognitionState({
+        processingStage: 'partial-failure',
+        recognitionStatusNote: 'failed: embedding',
+      }),
+    ).toMatchObject({
+      tone: 'warning',
+      label: '部分失败',
+    });
+  });
+
+  it('collects visible classification signals for the detail panel', () => {
+    expect(
+      collectVisibleClassification({
+        processingStage: 'indexed',
+        locationLabel: 'Guangzhou',
+        captionPreview: 'sunset over the river',
+        ocrPreview: 'Pearl River',
+        tags: ['sunset', 'river'],
+        semanticTags: ['scene:river', 'activity:walking'],
+        searchReady: true,
+      }),
+    ).toEqual([
+      { label: '地点', value: 'Guangzhou' },
+      { label: '描述', value: 'sunset over the river' },
+      { label: '文字识别', value: 'Pearl River' },
+      { label: '语义标签', value: 'scene:river / activity:walking' },
+      { label: '搜索准备', value: '已可搜索' },
+    ]);
+  });
+
+  it('describes whether the asset is searchable yet', () => {
+    expect(describeSearchStatus({ processingStage: 'indexed', searchReady: true })).toContain(
+      '搜索已就绪',
+    );
+    expect(
+      describeSearchStatus({ processingStage: 'partial-failure', searchReady: false }),
+    ).toContain('部分失败');
   });
 });

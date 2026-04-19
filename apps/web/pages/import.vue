@@ -6,6 +6,8 @@ import { apiFetch } from '../lib/api/client';
 import { computeSHA256 } from '../lib/import/hash';
 import { executeUploadFlow } from '../lib/import/upload';
 import {
+  buildImportCompletionSummary,
+  describeActionUnavailable,
   describeProcessingStage,
   describeUploadStatus,
   summarizeUploadQueue,
@@ -43,7 +45,22 @@ const hasFiles = computed(() => entries.value.length > 0);
 const canStart = computed(
   () => !isSubmitting.value && hasSession.value && hasLibrary.value && hasFiles.value,
 );
+const startBlockedReason = computed(() => {
+  if (!hasSession.value) {
+    return describeActionUnavailable('session');
+  }
+  if (!hasLibrary.value) {
+    return describeActionUnavailable('library');
+  }
+  if (!hasFiles.value) {
+    return describeActionUnavailable('files');
+  }
+  return '全部条件已满足，开始导入后照片会先入库，再继续在后台完成识别分类。';
+});
 const availableLibraries = computed(() => authSession.value?.libraryIds ?? []);
+const importedAssetIds = computed(() =>
+  entries.value.flatMap((entry) => (entry.status === 'done' && entry.assetId ? [entry.assetId] : [])),
+);
 const queueProgressLabel = computed(() => {
   if (!entries.value.length) {
     return '还没有加入任何文件';
@@ -96,6 +113,22 @@ const resultTone = computed(() => {
   }
   return 'default';
 });
+const importCompletionSummary = computed(() =>
+  buildImportCompletionSummary({
+    completedCount: completedCount.value,
+    failedCount: failedCount.value,
+    importedAssetIds: importedAssetIds.value,
+  }),
+);
+const importResultLink = computed(() => ({
+  path: '/',
+  query: importCompletionSummary.value.focusTarget
+    ? {
+        assetId: importCompletionSummary.value.focusTarget,
+        imported: importedAssetIds.value.join(','),
+      }
+    : {},
+}));
 
 onMounted(async () => {
   try {
@@ -164,9 +197,9 @@ async function beginImport() {
     }
 
     if (failedCount.value > 0) {
-      globalStatus.value = `本轮导入已结束，成功 ${completedCount.value} 个，需留意 ${failedCount.value} 个。`;
+      globalStatus.value = `本轮导入已结束，成功 ${completedCount.value} 个，需留意 ${failedCount.value} 个。已成功的照片已经入库，可立即去照片库查看；识别分类仍会继续在后台推进。`;
     } else {
-      globalStatus.value = `导入完成，${completedCount.value} 个文件已进入照片库。`;
+      globalStatus.value = `导入完成，${completedCount.value} 个文件已进入照片库。它们现在可以查看，识别分类与搜索整理仍会在后台继续。`;
     }
   } catch (error) {
     formError.value = formatError(error);
@@ -231,7 +264,7 @@ async function uploadEntry(entry: UploadEntry) {
     entry.assetId = confirmation.assetId;
     entry.processingStage = confirmation.processingStage;
     entry.status = 'done';
-    entry.message = `已进入照片库，当前阶段：${describeProcessingStage(confirmation.processingStage)}`;
+    entry.message = `已进入照片库，当前阶段：${describeProcessingStage(confirmation.processingStage)}。照片已经可见，识别分类仍可能继续在后台进行。`;
   } catch (error) {
     entry.status = 'error';
     entry.message = formatError(error);
@@ -350,6 +383,7 @@ function formatError(error: unknown) {
       </label>
 
       <p class="status-copy">{{ globalStatus }}</p>
+      <p class="status-copy">{{ startBlockedReason }}</p>
       <p v-if="formError" class="alert-banner" data-tone="danger">{{ formError }}</p>
 
       <div class="button-row">
@@ -390,24 +424,17 @@ function formatError(error: unknown) {
       <div
         v-if="completedCount > 0 || failedCount > 0"
         class="result-card"
-        :data-tone="failedCount > 0 ? 'warning' : 'success'"
+        :data-tone="importCompletionSummary.tone"
       >
-        <strong>
-          {{
-            failedCount > 0
-              ? '本轮导入已经结束，部分文件需要留意。'
-              : '本轮导入已经完成，可以继续查看照片。'
-          }}
-        </strong>
-        <p>
-          {{
-            failedCount > 0
-              ? `成功 ${completedCount} 个，需处理 ${failedCount} 个。你可以先去照片库查看已成功的结果，再决定是否继续导入。`
-              : `成功导入 ${completedCount} 个文件，现在可以前往照片库查看详情，或者继续选择下一批文件。`
-          }}
+        <strong>{{ importCompletionSummary.title }}</strong>
+        <p>{{ importCompletionSummary.detail }}</p>
+        <p v-if="importCompletionSummary.focusTarget" class="status-copy">
+          前往照片库后会优先定位本轮新上传的资产，并展示它当前是“已入库”“识别中”还是“已可搜索与整理”。
         </p>
         <div class="button-row">
-          <NuxtLink class="button-primary" to="/">前往照片库</NuxtLink>
+          <NuxtLink class="button-primary" :to="importResultLink">
+            {{ importCompletionSummary.cta }}
+          </NuxtLink>
           <button
             class="button-secondary"
             type="button"

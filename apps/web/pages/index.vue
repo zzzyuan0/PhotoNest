@@ -3,12 +3,12 @@ import { computed, onMounted, ref, watch } from 'vue';
 
 import {
   apiFetch,
+  buildApiURL,
   type AssetDetailResponse,
   type AlbumDetailResponse,
   type AlbumsResponse,
   type AuthSessionResponse,
   type DuplicatesResponse,
-  type DownloadGrant,
   type ExportJob,
   type ExportRequest,
   type PlacesResponse,
@@ -17,9 +17,13 @@ import {
 } from '../lib/api/client';
 import {
   buildAssetEmptyState,
+  collectVisibleClassification,
+  describeActionUnavailable,
   describeBackupStatus,
   describePreviewState,
   describeProcessingStage,
+  describeRecognitionState,
+  describeSearchStatus,
   pickNextSelectedAsset,
 } from '../lib/ui/workflow';
 
@@ -28,11 +32,17 @@ type AssetSummary = TimelineResponse['items'][number];
 type PlaceSummary = PlacesResponse['items'][number];
 type DuplicateCandidate = DuplicatesResponse['items'][number];
 type AlbumSummary = AlbumsResponse['items'][number];
+type InlineFeedback = {
+  tone: 'info' | 'success' | 'warning' | 'danger';
+  text: string;
+};
 
 const authSession = ref<Session | null>(null);
+const route = useRoute();
 const libraryId = ref('');
 const loading = ref(false);
 const error = ref('');
+const collectionMode = ref<'timeline' | 'album'>('timeline');
 
 const searchQuery = ref('');
 const locationFilter = ref('');
@@ -59,19 +69,103 @@ const exportScope = ref<ExportRequest['scope']>('library');
 const exportDateFrom = ref('');
 const exportDateTo = ref('');
 const exportJob = ref<ExportJob | null>(null);
+const dashboardFeedback = ref<InlineFeedback | null>(null);
+const searchFeedback = ref<InlineFeedback | null>(null);
+const albumFeedback = ref<InlineFeedback | null>(null);
+const exportFeedback = ref<InlineFeedback | null>(null);
+const assetFeedbackById = ref<Record<string, InlineFeedback>>({});
 
 const hasSession = computed(() => authSession.value !== null);
 const hasLibrary = computed(() => libraryId.value.trim() !== '');
 const canUseDashboard = computed(() => hasSession.value && hasLibrary.value);
+const dashboardBlockedReason = computed(() => {
+  if (!hasSession.value) {
+    return describeActionUnavailable('session');
+  }
+  if (!hasLibrary.value) {
+    return describeActionUnavailable('library');
+  }
+  return '已满足浏览条件，可以刷新、搜索、收藏、加入相册或导出。';
+});
 const isSearching = computed(() => searchQuery.value.trim() !== '');
 const hasFilters = computed(
   () => locationFilter.value.trim() !== '' || stageFilter.value.trim() !== '',
 );
-const displayItems = computed(() => (isSearching.value ? searchResults.value : timeline.value));
+const displayItems = computed(() => {
+  if (isSearching.value) {
+    return searchResults.value;
+  }
+  if (collectionMode.value === 'album') {
+    return selectedAlbum.value?.items ?? [];
+  }
+  return timeline.value;
+});
+const activeCollectionLabel = computed(() => {
+  if (isSearching.value) {
+    return '搜索结果';
+  }
+  if (collectionMode.value === 'album' && selectedAlbum.value) {
+    return `相册：${selectedAlbum.value.album.displayName}`;
+  }
+  return '照片列表';
+});
+const activeCollectionTitle = computed(() => {
+  if (isSearching.value) {
+    return '当前搜索结果';
+  }
+  if (collectionMode.value === 'album' && selectedAlbum.value) {
+    return '按当前相册浏览照片';
+  }
+  return '按时间浏览当前照片库';
+});
 const selectedAlbumName = computed(() => selectedAlbum.value?.album.displayName ?? '未选择相册');
 const selectedAssetSummary = computed(
   () => displayItems.value.find((item) => item.assetId === selectedAssetId.value) ?? null,
 );
+const selectedAssetInsight = computed(() =>
+  selectedAssetDetail.value ? describeRecognitionState(selectedAssetDetail.value) : null,
+);
+const selectedClassification = computed(() =>
+  selectedAssetDetail.value ? collectVisibleClassification(selectedAssetDetail.value) : [],
+);
+const selectedSearchStatus = computed(() =>
+  selectedAssetDetail.value ? describeSearchStatus(selectedAssetDetail.value) : '',
+);
+const importedAssetIds = computed(() => {
+  const raw = route.query.imported;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+});
+const importedFocusAssetId = computed(() => {
+  const raw = route.query.assetId;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value?.trim() ?? '';
+});
+const importFocusMessage = computed(() => {
+  if (!importedFocusAssetId.value) {
+    return null;
+  }
+  const target = displayItems.value.find((item) => item.assetId === importedFocusAssetId.value);
+  if (target) {
+    return {
+      tone: 'success' as const,
+      text: `已定位本轮导入的资产 ${importedFocusAssetId.value}，当前状态：${describeProcessingStage(target.processingStage)}。`,
+    };
+  }
+  if (importedAssetIds.value.length > 0) {
+    return {
+      tone: 'info' as const,
+      text: `本轮导入了 ${importedAssetIds.value.length} 个资产。若当前列表还没看到目标结果，请刷新照片库或清空筛选后再查看。`,
+    };
+  }
+  return null;
+});
 const selectedPreview = computed(() =>
   describePreviewState(
     selectedAssetDetail.value ?? selectedAssetSummary.value ?? { processingStage: 'accepted' },
@@ -148,6 +242,30 @@ watch(
   },
 );
 
+watch(
+  [
+    () => importedFocusAssetId.value,
+    () => displayItems.value.map((item) => item.assetId).join(','),
+  ],
+  async ([assetId]) => {
+    if (!assetId) {
+      return;
+    }
+    const found = displayItems.value.some((item) => item.assetId === assetId);
+    if (found && selectedAssetId.value !== assetId) {
+      await openAssetDetail(assetId);
+    }
+  },
+  { immediate: true },
+);
+
+function setAssetFeedback(assetId: string, feedback: InlineFeedback) {
+  assetFeedbackById.value = {
+    ...assetFeedbackById.value,
+    [assetId]: feedback,
+  };
+}
+
 async function loadSession() {
   try {
     const response = await apiFetch<AuthSessionResponse>('/api/v1/auth/session');
@@ -163,11 +281,13 @@ async function loadSession() {
 async function refreshDashboard() {
   if (!canUseDashboard.value) {
     error.value = '请先登录并填写一个可访问的 library ID。';
+    dashboardFeedback.value = { tone: 'warning', text: dashboardBlockedReason.value };
     return;
   }
 
   loading.value = true;
   error.value = '';
+  dashboardFeedback.value = { tone: 'info', text: '正在刷新照片库、地点、相册和详情上下文…' };
 
   try {
     const [timelineResponse, placesResponse, duplicatesResponse, albumsResponse] =
@@ -195,8 +315,13 @@ async function refreshDashboard() {
     if (isSearching.value) {
       await runSearch();
     }
+    dashboardFeedback.value = {
+      tone: 'success',
+      text: `照片库已刷新，当前可见 ${timeline.value.length} 张照片；新上传的照片若已入库，也会在这里继续显示处理中或已可搜索状态。`,
+    };
   } catch (caught) {
     error.value = formatError(caught);
+    dashboardFeedback.value = { tone: 'danger', text: `刷新失败：${formatError(caught)}` };
   } finally {
     loading.value = false;
   }
@@ -205,29 +330,43 @@ async function refreshDashboard() {
 async function refreshTimeline() {
   if (!canUseDashboard.value) {
     error.value = '请先确认登录状态和照片库。';
+    searchFeedback.value = { tone: 'warning', text: dashboardBlockedReason.value };
     return;
   }
+  collectionMode.value = 'timeline';
+  searchFeedback.value = { tone: 'info', text: '正在按当前地点和状态筛选照片…' };
   try {
     const response = await apiFetch<TimelineResponse>(
       `/api/v1/discovery/timeline?${timelineParams()}`,
     );
     timeline.value = response.items;
+    searchFeedback.value = {
+      tone: 'success',
+      text:
+        response.items.length > 0
+          ? `筛选已应用，当前有 ${response.items.length} 张照片符合条件。`
+          : '筛选已应用，但当前没有符合条件的照片。',
+    };
   } catch (caught) {
     error.value = formatError(caught);
+    searchFeedback.value = { tone: 'danger', text: `筛选失败：${formatError(caught)}` };
   }
 }
 
 async function runSearch() {
   if (!canUseDashboard.value) {
     error.value = '请先确认登录状态和照片库。';
+    searchFeedback.value = { tone: 'warning', text: dashboardBlockedReason.value };
     return;
   }
   if (searchQuery.value.trim() === '') {
     searchResults.value = [];
+    searchFeedback.value = { tone: 'warning', text: '请输入搜索词后再执行搜索。' };
     return;
   }
 
   try {
+    searchFeedback.value = { tone: 'info', text: `正在搜索 “${searchQuery.value.trim()}” …` };
     const params = new URLSearchParams({
       libraryId: libraryId.value.trim(),
       query: searchQuery.value.trim(),
@@ -237,28 +376,46 @@ async function runSearch() {
       `/api/v1/discovery/search?${params.toString()}`,
     );
     searchResults.value = response.items;
+    collectionMode.value = 'timeline';
+    searchFeedback.value = {
+      tone: response.items.length > 0 ? 'success' : 'warning',
+      text:
+        response.items.length > 0
+          ? `已找到 ${response.items.length} 个结果，识别完成度更高的照片会更容易被搜索到。`
+          : '没有找到匹配结果，可以换关键词、地点或先刷新照片库再试。',
+    };
   } catch (caught) {
     error.value = formatError(caught);
+    searchFeedback.value = { tone: 'danger', text: `搜索失败：${formatError(caught)}` };
   }
 }
 
 function clearSearch() {
   searchQuery.value = '';
   searchResults.value = [];
+  searchFeedback.value = { tone: 'info', text: '已清空搜索词，当前恢复为默认浏览视图。' };
 }
 
 async function clearFilters() {
   locationFilter.value = '';
   stageFilter.value = '';
+  searchFeedback.value = { tone: 'info', text: '已清空筛选条件，正在恢复完整照片列表。' };
   await refreshTimeline();
 }
 
 async function createAlbum() {
-  if (!canUseDashboard.value || newAlbumName.value.trim() === '') {
+  if (!canUseDashboard.value) {
+    albumFeedback.value = { tone: 'warning', text: dashboardBlockedReason.value };
+    return;
+  }
+  if (newAlbumName.value.trim() === '') {
+    albumFeedback.value = { tone: 'warning', text: '请先输入相册名称，再创建相册。' };
     return;
   }
 
   try {
+    error.value = '';
+    albumFeedback.value = { tone: 'info', text: `正在创建相册 “${newAlbumName.value.trim()}” …` };
     const created = await apiFetch<AlbumSummary>('/api/v1/albums', {
       method: 'POST',
       body: {
@@ -269,8 +426,15 @@ async function createAlbum() {
     newAlbumName.value = '';
     await refreshAlbums();
     selectedAlbumId.value = created.albumId;
+    collectionMode.value = 'album';
+    await openAlbum(created.albumId);
+    albumFeedback.value = {
+      tone: 'success',
+      text: `相册已创建并设为当前相册，现在可以把左侧或详情区的照片直接加入进去。`,
+    };
   } catch (caught) {
     error.value = formatError(caught);
+    albumFeedback.value = { tone: 'danger', text: `创建相册失败：${formatError(caught)}` };
   }
 }
 
@@ -287,6 +451,7 @@ async function openAlbum(albumId: string) {
     return;
   }
   try {
+    error.value = '';
     selectedAlbum.value = await apiFetch<AlbumDetailResponse>(
       `/api/v1/albums/${albumId}?${baseParams({ limit: '50' })}`,
     );
@@ -310,9 +475,7 @@ async function openAssetDetail(assetId: string) {
   detailLoading.value = true;
   selectedAssetId.value = assetId;
   try {
-    const detail = await apiFetch<AssetDetailResponse>(
-      `/api/v1/assets/${assetId}?${baseParams()}`,
-    );
+    const detail = await apiFetch<AssetDetailResponse>(`/api/v1/assets/${assetId}?${baseParams()}`);
     if (requestVersion !== detailRequestVersion.value) {
       return;
     }
@@ -351,21 +514,9 @@ async function ensureAssetPreview(detail: AssetDetailResponse) {
   };
 
   try {
-    const grant = await apiFetch<DownloadGrant>(
-      `/api/v1/assets/${detail.assetId}/download?${baseParams()}`,
-      { method: 'POST' },
-    );
-    if (grant.status !== 'ready' || !grant.url) {
-      previewErrorByAssetId.value = {
-        ...previewErrorByAssetId.value,
-        [detail.assetId]: '当前图片还在准备受控预览地址，请稍后再试。',
-      };
-      return;
-    }
-
     previewUrlByAssetId.value = {
       ...previewUrlByAssetId.value,
-      [detail.assetId]: grant.url,
+      [detail.assetId]: buildApiURL(`/api/v1/assets/${detail.assetId}/preview?${baseParams()}`),
     };
   } catch (caught) {
     previewErrorByAssetId.value = {
@@ -381,9 +532,11 @@ async function ensureAssetPreview(detail: AssetDetailResponse) {
 
 async function favoriteAsset(assetId: string) {
   if (!canUseDashboard.value) {
+    setAssetFeedback(assetId, { tone: 'warning', text: dashboardBlockedReason.value });
     return;
   }
   try {
+    setAssetFeedback(assetId, { tone: 'info', text: '正在加入收藏…' });
     await apiFetch(`/api/v1/assets/${assetId}/favorite`, {
       method: 'PUT',
       body: {
@@ -395,16 +548,33 @@ async function favoriteAsset(assetId: string) {
     if (selectedAlbumId.value) {
       await openAlbum(selectedAlbumId.value);
     }
+    setAssetFeedback(assetId, {
+      tone: 'success',
+      text: '已加入收藏，相册区会同步反映最新结果。',
+    });
   } catch (caught) {
     error.value = formatError(caught);
+    setAssetFeedback(assetId, { tone: 'danger', text: `加入收藏失败：${formatError(caught)}` });
   }
 }
 
 async function addAssetToSelectedAlbum(assetId: string) {
-  if (!canUseDashboard.value || selectedAlbumId.value.trim() === '') {
+  if (!canUseDashboard.value) {
+    setAssetFeedback(assetId, { tone: 'warning', text: dashboardBlockedReason.value });
+    return;
+  }
+  if (selectedAlbumId.value.trim() === '') {
+    setAssetFeedback(assetId, {
+      tone: 'warning',
+      text: describeActionUnavailable('album'),
+    });
     return;
   }
   try {
+    setAssetFeedback(assetId, {
+      tone: 'info',
+      text: `正在加入相册 “${selectedAlbumName.value}” …`,
+    });
     await apiFetch(`/api/v1/albums/${selectedAlbumId.value}/assets`, {
       method: 'POST',
       body: {
@@ -414,17 +584,30 @@ async function addAssetToSelectedAlbum(assetId: string) {
     });
     await refreshAlbums();
     await openAlbum(selectedAlbumId.value);
+    setAssetFeedback(assetId, {
+      tone: 'success',
+      text: `已加入当前相册 “${selectedAlbumName.value}”。`,
+    });
   } catch (caught) {
     error.value = formatError(caught);
+    setAssetFeedback(assetId, { tone: 'danger', text: `加入相册失败：${formatError(caught)}` });
   }
 }
 
 async function createExport() {
   if (!canExport.value) {
+    exportFeedback.value = {
+      tone: 'warning',
+      text:
+        exportScope.value === 'album'
+          ? describeActionUnavailable('album')
+          : dashboardBlockedReason.value,
+    };
     return;
   }
 
   try {
+    exportFeedback.value = { tone: 'info', text: '正在生成导出包…' };
     exportJob.value = await apiFetch<ExportJob>('/api/v1/exports', {
       method: 'POST',
       body: {
@@ -436,14 +619,30 @@ async function createExport() {
         dateTo: exportScope.value === 'date-range' ? exportDateTo.value || undefined : undefined,
       },
     });
+    exportFeedback.value = {
+      tone: 'success',
+      text: `导出任务已创建，当前状态：${exportJob.value.status}，可以在这里继续跟进下载链接。`,
+    };
   } catch (caught) {
     error.value = formatError(caught);
+    exportFeedback.value = { tone: 'danger', text: `导出失败：${formatError(caught)}` };
   }
 }
 
 async function usePlace(label: string) {
   locationFilter.value = label;
+  searchFeedback.value = { tone: 'info', text: `已切换到地点 “${label}”，正在刷新结果…` };
   await refreshTimeline();
+}
+
+async function viewAlbum(albumId: string) {
+  selectedAlbumId.value = albumId;
+  collectionMode.value = 'album';
+  await openAlbum(albumId);
+}
+
+function viewTimeline() {
+  collectionMode.value = 'timeline';
 }
 
 function baseParams(extra: Record<string, string> = {}) {
@@ -507,6 +706,22 @@ function formatError(error: unknown) {
 
       <p class="subtle-copy">
         主区域负责浏览、筛选和切换当前照片；右侧详情区固定展示当前选中资产，常用操作也都集中在附近。
+      </p>
+      <p class="status-copy">{{ dashboardBlockedReason }}</p>
+      <p
+        v-if="dashboardFeedback"
+        class="alert-banner"
+        :data-tone="
+          dashboardFeedback.tone === 'danger'
+            ? 'danger'
+            : dashboardFeedback.tone === 'warning'
+              ? 'warning'
+              : dashboardFeedback.tone === 'success'
+                ? 'success'
+                : 'default'
+        "
+      >
+        {{ dashboardFeedback.text }}
       </p>
 
       <div class="metric-grid">
@@ -633,6 +848,21 @@ function formatError(error: unknown) {
         <button class="button-ghost" type="button" @click="clearSearch">清空搜索</button>
         <button class="button-ghost" type="button" @click="clearFilters">清空筛选</button>
       </div>
+      <p
+        v-if="searchFeedback"
+        class="alert-banner"
+        :data-tone="
+          searchFeedback.tone === 'danger'
+            ? 'danger'
+            : searchFeedback.tone === 'warning'
+              ? 'warning'
+              : searchFeedback.tone === 'success'
+                ? 'success'
+                : 'default'
+        "
+      >
+        {{ searchFeedback.text }}
+      </p>
     </article>
 
     <article class="surface-card place-card">
@@ -664,17 +894,34 @@ function formatError(error: unknown) {
   </section>
 
   <p v-if="error" class="alert-banner error-line" data-tone="danger">{{ error }}</p>
+  <p
+    v-if="importFocusMessage"
+    class="alert-banner"
+    :data-tone="importFocusMessage.tone === 'success' ? 'success' : 'default'"
+  >
+    {{ importFocusMessage.text }}
+  </p>
 
   <section class="workspace-grid">
     <article class="surface-card list-panel">
       <div class="section-heading">
         <div>
-          <p class="mono-label">{{ isSearching ? '搜索结果' : '照片列表' }}</p>
-          <h2>{{ isSearching ? '当前搜索结果' : '按时间浏览当前照片库' }}</h2>
+          <p class="mono-label">{{ activeCollectionLabel }}</p>
+          <h2>{{ activeCollectionTitle }}</h2>
         </div>
-        <span class="status-pill" :data-tone="displayItems.length ? 'success' : 'warning'">
-          {{ displayItems.length }} 项
-        </span>
+        <div class="button-row">
+          <button
+            v-if="collectionMode === 'album' && !isSearching"
+            class="button-ghost"
+            type="button"
+            @click="viewTimeline"
+          >
+            返回照片库
+          </button>
+          <span class="status-pill" :data-tone="displayItems.length ? 'success' : 'warning'">
+            {{ displayItems.length }} 项
+          </span>
+        </div>
       </div>
 
       <div v-if="displayItems.length > 0" class="asset-list">
@@ -710,11 +957,21 @@ function formatError(error: unknown) {
             </div>
 
             <p class="asset-copy">
-              {{ item.captionPreview || '这张照片已经入库，系统还在继续整理预览或补充说明。' }}
+              {{
+                item.captionPreview ||
+                item.locationLabel ||
+                (item.searchReady
+                  ? '这张照片已经完成当前整理闭环，现在可以继续搜索、收藏或加入相册。'
+                  : item.processingStage === 'partial-failure'
+                    ? '这张照片仍然可见，但部分识别阶段失败，需要人工留意。'
+                    : '这张照片已经入库，系统还在继续整理预览、说明或搜索结果。')
+              }}
             </p>
             <div class="asset-meta">
               <span>时间：{{ item.timelineTimestamp }}</span>
               <span>备份：{{ describeBackupStatus(item.backupStatus) }}</span>
+              <span v-if="item.locationLabel">地点：{{ item.locationLabel }}</span>
+              <span>{{ describeSearchStatus(item) }}</span>
             </div>
           </button>
 
@@ -731,6 +988,9 @@ function formatError(error: unknown) {
               加入当前相册
             </button>
           </div>
+          <p v-if="assetFeedbackById[item.assetId]" class="status-copy">
+            {{ assetFeedbackById[item.assetId]?.text }}
+          </p>
         </article>
       </div>
 
@@ -841,9 +1101,16 @@ function formatError(error: unknown) {
           </div>
         </div>
 
+        <div class="detail-state" :data-tone="selectedAssetInsight?.tone || 'info'">
+          <strong>{{ selectedAssetInsight?.label }}</strong>
+          <p>{{ selectedAssetInsight?.detail }}</p>
+          <small>{{ selectedSearchStatus }}</small>
+        </div>
+
         <p class="detail-copy">
           {{
             selectedAssetDetail.captionPreview ||
+            selectedAssetDetail.locationLabel ||
             '这张照片已经可以查看基础信息，更多摘要仍可能继续补齐。'
           }}
         </p>
@@ -860,6 +1127,20 @@ function formatError(error: unknown) {
                 : '缩略图尚未就绪，但照片已经存在，不影响继续收藏或加入相册。'
             }}
           </span>
+          <span v-if="selectedAssetDetail.recognitionStatusNote">
+            后台状态：{{ selectedAssetDetail.recognitionStatusNote }}
+          </span>
+        </div>
+
+        <div v-if="selectedClassification.length" class="classification-grid">
+          <article
+            v-for="entry in selectedClassification"
+            :key="entry.label"
+            class="classification-card"
+          >
+            <span>{{ entry.label }}</span>
+            <strong>{{ entry.value }}</strong>
+          </article>
         </div>
 
         <div class="button-row">
@@ -880,6 +1161,9 @@ function formatError(error: unknown) {
           </button>
           <NuxtLink class="button-ghost" to="/import">继续导入更多照片</NuxtLink>
         </div>
+        <p v-if="assetFeedbackById[selectedAssetDetail.assetId]" class="status-copy">
+          {{ assetFeedbackById[selectedAssetDetail.assetId]?.text }}
+        </p>
 
         <div v-if="detailLoading" class="detail-inline-loading">
           <p class="detail-loading">正在读取当前照片的详情…</p>
@@ -946,6 +1230,28 @@ function formatError(error: unknown) {
           创建相册
         </button>
       </div>
+      <p class="status-copy">
+        {{
+          selectedAlbumId
+            ? `当前目标相册：${selectedAlbumName}`
+            : describeActionUnavailable('album')
+        }}
+      </p>
+      <p
+        v-if="albumFeedback"
+        class="alert-banner"
+        :data-tone="
+          albumFeedback.tone === 'danger'
+            ? 'danger'
+            : albumFeedback.tone === 'warning'
+              ? 'warning'
+              : albumFeedback.tone === 'success'
+                ? 'success'
+                : 'default'
+        "
+      >
+        {{ albumFeedback.text }}
+      </p>
 
       <div v-if="albums.length" class="album-list">
         <button
@@ -954,7 +1260,7 @@ function formatError(error: unknown) {
           class="album-button"
           :class="{ selected: selectedAlbumId === album.albumId }"
           type="button"
-          @click="selectedAlbumId = album.albumId"
+          @click="viewAlbum(album.albumId)"
         >
           <strong>{{ album.displayName }}</strong>
           <span>{{ album.kind }}</span>
@@ -1025,6 +1331,21 @@ function formatError(error: unknown) {
           <button class="button-primary" type="button" :disabled="!canExport" @click="createExport">
             生成导出包
           </button>
+          <p
+            v-if="exportFeedback"
+            class="alert-banner"
+            :data-tone="
+              exportFeedback.tone === 'danger'
+                ? 'danger'
+                : exportFeedback.tone === 'warning'
+                  ? 'warning'
+                  : exportFeedback.tone === 'success'
+                    ? 'success'
+                    : 'default'
+            "
+          >
+            {{ exportFeedback.text }}
+          </p>
 
           <div v-if="exportJob" class="secondary-card">
             <p>状态：{{ exportJob.status }}</p>
@@ -1209,6 +1530,28 @@ function formatError(error: unknown) {
 .export-form {
   display: grid;
   gap: 18px;
+}
+
+.detail-state,
+.classification-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(22, 57, 63, 0.06);
+}
+
+.detail-state[data-tone='success'] {
+  background: rgba(34, 92, 67, 0.1);
+}
+
+.detail-state[data-tone='warning'] {
+  background: rgba(142, 91, 31, 0.12);
+}
+
+.classification-grid {
+  display: grid;
+  gap: 12px;
 }
 
 .detail-preview-shell {

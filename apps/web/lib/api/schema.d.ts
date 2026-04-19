@@ -4,1336 +4,1355 @@
  */
 
 export interface paths {
-    "/api/v1/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取 API 与依赖健康状态 */
-        get: operations["getHealth"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  '/api/v1/health': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 使用 bootstrap 凭据创建认证会话 */
-        post: operations["login"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** 获取 API 与依赖健康状态 */
+    get: operations['getHealth'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/auth/login': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/auth/session": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取当前认证会话 */
-        get: operations["getCurrentSession"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** 使用 bootstrap 凭据创建认证会话 */
+    post: operations['login'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/auth/session': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/auth/recent": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 刷新近期认证状态 */
-        post: operations["refreshRecentAuthentication"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** 获取当前认证会话 */
+    get: operations['getCurrentSession'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/auth/recent': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/import/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 创建导入会话 */
-        post: operations["createImportSession"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** 刷新近期认证状态 */
+    post: operations['refreshRecentAuthentication'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/import/sessions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/import/sessions/{sessionId}/uploads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 为上传对象签发预签名信息 */
-        post: operations["createUploadTicket"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** 创建导入会话 */
+    post: operations['createImportSession'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/import/sessions/{sessionId}/uploads': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/import/sessions/{sessionId}/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 确认上传结果并闭合导入状态机 */
-        post: operations["confirmUpload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** 为上传对象签发预签名信息 */
+    post: operations['createUploadTicket'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/import/sessions/{sessionId}/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/discovery/timeline": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取按时间线排列的资产摘要 */
-        get: operations["listTimelineAssets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** 确认上传结果并闭合导入状态机 */
+    post: operations['confirmUpload'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/discovery/timeline': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/discovery/places": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取地点聚合浏览结果 */
-        get: operations["listPlaceSummaries"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** 获取按时间线排列的资产摘要 */
+    get: operations['listTimelineAssets'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/discovery/places': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/discovery/duplicates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取重复照片审查候选 */
-        get: operations["listDuplicateCandidates"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** 获取地点聚合浏览结果 */
+    get: operations['listPlaceSummaries'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/discovery/duplicates': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/discovery/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 以统一授权边界执行搜索 */
-        get: operations["searchAssets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** 获取重复照片审查候选 */
+    get: operations['listDuplicateCandidates'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/discovery/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/albums": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取收藏和精选相册列表 */
-        get: operations["listAlbums"];
-        put?: never;
-        /** 创建精选相册 */
-        post: operations["createAlbum"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** 以统一授权边界执行搜索 */
+    get: operations['searchAssets'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/albums': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/albums/{albumId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取单个相册及其资产 */
-        get: operations["getAlbumDetail"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** 获取收藏和精选相册列表 */
+    get: operations['listAlbums'];
+    put?: never;
+    /** 创建精选相册 */
+    post: operations['createAlbum'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/albums/{albumId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/albums/{albumId}/assets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 向相册添加资产 */
-        post: operations["addAlbumAsset"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** 获取单个相册及其资产 */
+    get: operations['getAlbumDetail'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/albums/{albumId}/assets': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/assets/{assetId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取单个资产详情 */
-        get: operations["getAssetDetail"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** 向相册添加资产 */
+    post: operations['addAlbumAsset'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/assets/{assetId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/assets/{assetId}/favorite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 更新资产收藏状态 */
-        put: operations["setFavoriteAsset"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** 获取单个资产详情 */
+    get: operations['getAssetDetail'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/assets/{assetId}/favorite': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/assets/{assetId}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 为单个资产申请受控下载访问 */
-        post: operations["requestAssetDownload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    /** 更新资产收藏状态 */
+    put: operations['setFavoriteAsset'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/assets/{assetId}/download': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/assets/batch-downloads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 创建批量下载请求 */
-        post: operations["createBatchDownload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** 为单个资产申请受控下载访问 */
+    post: operations['requestAssetDownload'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/assets/batch-downloads': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/exports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 创建导出任务 */
-        post: operations["createExportJob"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** 创建批量下载请求 */
+    post: operations['createBatchDownload'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/exports': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/settings/providers/{providerName}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 更新 Provider 设置 */
-        put: operations["updateProviderSettings"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** 创建导出任务 */
+    post: operations['createExportJob'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/settings/providers/{providerName}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/settings/privacy-policy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 更新隐私策略 */
-        put: operations["updatePrivacyPolicy"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    /** 更新 Provider 设置 */
+    put: operations['updateProviderSettings'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/settings/privacy-policy': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/debug/provider-runs/{runId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 查看 Provider 调试保留记录 */
-        get: operations["getProviderRunDebug"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    /** 更新隐私策略 */
+    put: operations['updatePrivacyPolicy'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/debug/provider-runs/{runId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    /** 查看 Provider 调试保留记录 */
+    get: operations['getProviderRunDebug'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        Error: {
-            code: string;
-            message: string;
-            traceId: string;
-            details?: {
-                [key: string]: unknown;
-            };
-        };
-        CursorPageInfo: {
-            nextCursor?: string;
-            hasNextPage: boolean;
-        };
-        HealthCheck: {
-            name: string;
-            healthy: boolean;
-            detail?: string;
-            /** Format: date-time */
-            checkedAt: string;
-        };
-        HealthResponse: {
-            /** @enum {string} */
-            status: "ok" | "degraded" | "failed";
-            checks: components["schemas"]["HealthCheck"][];
-        };
-        LoginRequest: {
-            username: string;
-            password: string;
-        };
-        RefreshRecentAuthRequest: {
-            password: string;
-        };
-        AuthSession: {
-            id: string;
-            subjectId: string;
-            displayName: string;
-            roles: string[];
-            libraryIds: string[];
-            authMethod: string;
-            /** Format: date-time */
-            authenticatedAt: string;
-            /** Format: date-time */
-            recentAuthAt: string;
-            /** Format: date-time */
-            expiresAt: string;
-            csrfToken: string;
-        };
-        AuthSessionResponse: {
-            session: components["schemas"]["AuthSession"];
-            accessToken?: string;
-            csrfToken?: string;
-        };
-        CreateImportSessionRequest: {
-            /** Format: uuid */
-            libraryId: string;
-            /** @enum {string} */
-            source: "web-upload" | "desktop-batch" | "export-restore";
-            expectedItemCount?: number;
-            note?: string;
-        };
-        ImportSession: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            libraryId: string;
-            /** @enum {string} */
-            status: "draft" | "awaiting-upload" | "uploaded" | "confirmed" | "failed";
-            source: string;
-            /** Format: date-time */
-            expiresAt: string;
-        };
-        CreateUploadTicketRequest: {
-            /** Format: uuid */
-            libraryId: string;
-            fileName: string;
-            contentType: string;
-            contentLength: number;
-            contentSha256?: string;
-            /** @default false */
-            multipart: boolean;
-        };
-        UploadTicket: {
-            /** Format: uuid */
-            sessionId: string;
-            objectKey: string;
-            /** @enum {string} */
-            method?: "PUT" | "POST";
-            /** Format: uri */
-            url?: string;
-            headers?: {
-                [key: string]: string;
-            };
-            formFields?: {
-                [key: string]: string;
-            };
-            /** Format: date-time */
-            expiresAt: string;
-            checksumAlgorithm?: string;
-            multipart?: components["schemas"]["MultipartUploadTicket"];
-        };
-        MultipartUploadTicket: {
-            uploadId: string;
-            /** Format: date-time */
-            expiresAt: string;
-            parts: components["schemas"]["MultipartUploadPart"][];
-        };
-        MultipartUploadPart: {
-            partNumber: number;
-            /** Format: uri */
-            uploadUrl: string;
-            headers?: {
-                [key: string]: string;
-            };
-        };
-        ConfirmUploadRequest: {
-            /** Format: uuid */
-            libraryId: string;
-            objectKey: string;
-            contentLength: number;
-            etag?: string;
-            contentSha256?: string;
-            uploadId?: string;
-            parts?: components["schemas"]["CompletedUploadPart"][];
-        };
-        CompletedUploadPart: {
-            partNumber: number;
-            etag: string;
-        };
-        AssetAcceptedResponse: {
-            /** Format: uuid */
-            assetId: string;
-            /** Format: uuid */
-            importSessionId: string;
-            /** @enum {string} */
-            processingStage: "accepted" | "stored" | "derivatives-ready" | "metadata-ready" | "ai-ready" | "indexed" | "partial-failure";
-        };
-        AssetSummary: {
-            /** Format: uuid */
-            assetId: string;
-            mediaType: string;
-            /** Format: date-time */
-            timelineTimestamp: string;
-            processingStage: string;
-            backupStatus: string;
-            thumbnailToken?: string;
-            captionPreview?: string;
-        };
-        TimelineResponse: {
-            /** Format: uuid */
-            libraryId: string;
-            items: components["schemas"]["AssetSummary"][];
-            pageInfo: components["schemas"]["CursorPageInfo"];
-        };
-        PlaceSummary: {
-            label: string;
-            count: number;
-            /** Format: date-time */
-            latestAt: string;
-            latestAsset: components["schemas"]["AssetSummary"];
-        };
-        PlacesResponse: {
-            /** Format: uuid */
-            libraryId: string;
-            items: components["schemas"]["PlaceSummary"][];
-        };
-        DuplicateCandidate: {
-            primary: components["schemas"]["AssetSummary"];
-            candidate: components["schemas"]["AssetSummary"];
-            exact: boolean;
-        };
-        DuplicatesResponse: {
-            /** Format: uuid */
-            libraryId: string;
-            items: components["schemas"]["DuplicateCandidate"][];
-        };
-        SearchResponse: {
-            /** Format: uuid */
-            libraryId: string;
-            query: string;
-            items: components["schemas"]["AssetSummary"][];
-            pageInfo: components["schemas"]["CursorPageInfo"];
-        };
-        AssetDetail: {
-            /** Format: uuid */
-            assetId: string;
-            /** Format: uuid */
-            libraryId: string;
-            mediaType: string;
-            /** Format: date-time */
-            capturedAt?: string;
-            processingStage: string;
-            backupStatus: string;
-            captionPreview?: string;
-            thumbnailToken?: string;
-        };
-        AlbumSummary: {
-            /** Format: uuid */
-            albumId: string;
-            slug: string;
-            displayName: string;
-            /** @enum {string} */
-            kind: "favorites" | "curated" | "duplicates-review";
-            assetCount: number;
-        };
-        AlbumsResponse: {
-            /** Format: uuid */
-            libraryId: string;
-            items: components["schemas"]["AlbumSummary"][];
-        };
-        AlbumDetailResponse: {
-            /** Format: uuid */
-            libraryId: string;
-            album: components["schemas"]["AlbumSummary"];
-            items: components["schemas"]["AssetSummary"][];
-            pageInfo: components["schemas"]["CursorPageInfo"];
-        };
-        DownloadGrant: {
-            /** Format: uuid */
-            assetId: string;
-            /** @enum {string} */
-            status: "pending" | "ready";
-            /** Format: uri */
-            url?: string;
-            /** Format: date-time */
-            expiresAt?: string;
-        };
-        BatchDownloadRequest: {
-            /** Format: uuid */
-            libraryId: string;
-            assetIds: string[];
-        };
-        BatchDownloadJob: {
-            /** Format: uuid */
-            jobId: string;
-            /** @enum {string} */
-            status: "queued" | "running" | "ready" | "failed";
-        };
-        CreateAlbumRequest: {
-            /** Format: uuid */
-            libraryId: string;
-            displayName: string;
-        };
-        AddAlbumAssetRequest: {
-            /** Format: uuid */
-            libraryId: string;
-            /** Format: uuid */
-            assetId: string;
-        };
-        SetFavoriteRequest: {
-            /** Format: uuid */
-            libraryId: string;
-            favorite: boolean;
-        };
-        ExportRequest: {
-            /** Format: uuid */
-            libraryId: string;
-            /** @enum {string} */
-            scope: "library" | "album" | "date-range";
-            /** Format: uuid */
-            albumId?: string;
-            /** Format: date */
-            dateFrom?: string;
-            /** Format: date */
-            dateTo?: string;
-        };
-        RecoveryPlan: {
-            assetCount: number;
-            objectCount: number;
-            backupVerifiedCount: number;
-            requiredMetadata: string[];
-            warnings?: string[];
-        };
-        ExportJob: {
-            id: string;
-            /** Format: uuid */
-            libraryId: string;
-            /** @enum {string} */
-            scope: "library" | "album" | "date-range";
-            /** @enum {string} */
-            status: "ready" | "failed";
-            assetCount: number;
-            /** Format: uri */
-            archiveUrl?: string;
-            /** Format: uri */
-            redactedManifestUrl?: string;
-            /** Format: date-time */
-            expiresAt: string;
-            /** Format: date-time */
-            createdAt: string;
-            recoveryPlan: components["schemas"]["RecoveryPlan"];
-        };
-        UpdateProviderSettingsRequest: {
-            bucket?: string;
-            region?: string;
-            endpoint?: string;
-            keyPrefix?: string;
-            accessKeyId?: string;
-            accessKeySecret?: string;
-            sessionToken?: string;
-            forcePathStyle?: boolean;
-            allowedOrigins?: string[];
-            privateRead?: boolean;
-            publicReadBlockMode?: string;
-            /** Format: uri */
-            healthCheckUrl?: string;
-            corsConfigPath?: string;
-        };
-        ProviderSettingsResponse: {
-            providerName: string;
-            /** @enum {string} */
-            status: "updated";
-            summary: {
-                [key: string]: unknown;
-            };
-        };
-        UpdatePrivacyPolicyRequest: {
-            /** @enum {string} */
-            gpsMode: "hidden" | "owner-only";
-            /** @enum {string} */
-            ocrMode: "hidden" | "preview" | "full";
-            /** @enum {string} */
-            captionMode: "hidden" | "preview" | "full";
-            /** @enum {string} */
-            embeddingMode: "disabled" | "private";
-        };
-        PrivacyPolicy: {
-            gpsMode: string;
-            ocrMode: string;
-            captionMode: string;
-            embeddingMode: string;
-        };
-        ProviderRunDebugRecord: {
-            /** Format: uuid */
-            runId: string;
-            status: string;
-            debugPayload?: {
-                [key: string]: unknown;
-            };
-        };
+  schemas: {
+    Error: {
+      code: string;
+      message: string;
+      traceId: string;
+      details?: {
+        [key: string]: unknown;
+      };
     };
-    responses: {
-        /** @description 标准错误响应 */
-        ErrorResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
+    CursorPageInfo: {
+      nextCursor?: string;
+      hasNextPage: boolean;
     };
-    parameters: {
-        SessionId: string;
-        AssetId: string;
-        ProviderName: string;
-        AlbumId: string;
-        RunId: string;
-        LibraryId: string;
+    HealthCheck: {
+      name: string;
+      healthy: boolean;
+      detail?: string;
+      /** Format: date-time */
+      checkedAt: string;
     };
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+    HealthResponse: {
+      /** @enum {string} */
+      status: 'ok' | 'degraded' | 'failed';
+      checks: components['schemas']['HealthCheck'][];
+    };
+    LoginRequest: {
+      username: string;
+      password: string;
+    };
+    RefreshRecentAuthRequest: {
+      password: string;
+    };
+    AuthSession: {
+      id: string;
+      subjectId: string;
+      displayName: string;
+      roles: string[];
+      libraryIds: string[];
+      authMethod: string;
+      /** Format: date-time */
+      authenticatedAt: string;
+      /** Format: date-time */
+      recentAuthAt: string;
+      /** Format: date-time */
+      expiresAt: string;
+      csrfToken: string;
+    };
+    AuthSessionResponse: {
+      session: components['schemas']['AuthSession'];
+      accessToken?: string;
+      csrfToken?: string;
+    };
+    CreateImportSessionRequest: {
+      /** Format: uuid */
+      libraryId: string;
+      /** @enum {string} */
+      source: 'web-upload' | 'desktop-batch' | 'export-restore';
+      expectedItemCount?: number;
+      note?: string;
+    };
+    ImportSession: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      libraryId: string;
+      /** @enum {string} */
+      status: 'draft' | 'awaiting-upload' | 'uploaded' | 'confirmed' | 'failed';
+      source: string;
+      /** Format: date-time */
+      expiresAt: string;
+    };
+    CreateUploadTicketRequest: {
+      /** Format: uuid */
+      libraryId: string;
+      fileName: string;
+      contentType: string;
+      contentLength: number;
+      contentSha256?: string;
+      /** @default false */
+      multipart: boolean;
+    };
+    UploadTicket: {
+      /** Format: uuid */
+      sessionId: string;
+      objectKey: string;
+      /** @enum {string} */
+      method?: 'PUT' | 'POST';
+      /** Format: uri */
+      url?: string;
+      headers?: {
+        [key: string]: string;
+      };
+      formFields?: {
+        [key: string]: string;
+      };
+      /** Format: date-time */
+      expiresAt: string;
+      checksumAlgorithm?: string;
+      multipart?: components['schemas']['MultipartUploadTicket'];
+    };
+    MultipartUploadTicket: {
+      uploadId: string;
+      /** Format: date-time */
+      expiresAt: string;
+      parts: components['schemas']['MultipartUploadPart'][];
+    };
+    MultipartUploadPart: {
+      partNumber: number;
+      /** Format: uri */
+      uploadUrl: string;
+      headers?: {
+        [key: string]: string;
+      };
+    };
+    ConfirmUploadRequest: {
+      /** Format: uuid */
+      libraryId: string;
+      objectKey: string;
+      contentLength: number;
+      etag?: string;
+      contentSha256?: string;
+      uploadId?: string;
+      parts?: components['schemas']['CompletedUploadPart'][];
+    };
+    CompletedUploadPart: {
+      partNumber: number;
+      etag: string;
+    };
+    AssetAcceptedResponse: {
+      /** Format: uuid */
+      assetId: string;
+      /** Format: uuid */
+      importSessionId: string;
+      /** @enum {string} */
+      processingStage:
+        | 'accepted'
+        | 'stored'
+        | 'derivatives-ready'
+        | 'metadata-ready'
+        | 'ai-ready'
+        | 'indexed'
+        | 'partial-failure';
+    };
+    AssetSummary: {
+      /** Format: uuid */
+      assetId: string;
+      mediaType: string;
+      /** Format: date-time */
+      timelineTimestamp: string;
+      processingStage: string;
+      backupStatus: string;
+      thumbnailToken?: string;
+      captionPreview?: string;
+      ocrPreview?: string;
+      locationLabel?: string;
+      tags?: string[];
+      semanticTags?: string[];
+      searchReady: boolean;
+      recognitionStatusNote?: string;
+    };
+    TimelineResponse: {
+      /** Format: uuid */
+      libraryId: string;
+      items: components['schemas']['AssetSummary'][];
+      pageInfo: components['schemas']['CursorPageInfo'];
+    };
+    PlaceSummary: {
+      label: string;
+      count: number;
+      /** Format: date-time */
+      latestAt: string;
+      latestAsset: components['schemas']['AssetSummary'];
+    };
+    PlacesResponse: {
+      /** Format: uuid */
+      libraryId: string;
+      items: components['schemas']['PlaceSummary'][];
+    };
+    DuplicateCandidate: {
+      primary: components['schemas']['AssetSummary'];
+      candidate: components['schemas']['AssetSummary'];
+      exact: boolean;
+    };
+    DuplicatesResponse: {
+      /** Format: uuid */
+      libraryId: string;
+      items: components['schemas']['DuplicateCandidate'][];
+    };
+    SearchResponse: {
+      /** Format: uuid */
+      libraryId: string;
+      query: string;
+      items: components['schemas']['AssetSummary'][];
+      pageInfo: components['schemas']['CursorPageInfo'];
+    };
+    AssetDetail: {
+      /** Format: uuid */
+      assetId: string;
+      /** Format: uuid */
+      libraryId: string;
+      mediaType: string;
+      /** Format: date-time */
+      capturedAt?: string;
+      processingStage: string;
+      backupStatus: string;
+      captionPreview?: string;
+      ocrPreview?: string;
+      thumbnailToken?: string;
+      locationLabel?: string;
+      tags?: string[];
+      semanticTags?: string[];
+      searchReady: boolean;
+      recognitionStatusNote?: string;
+    };
+    AlbumSummary: {
+      /** Format: uuid */
+      albumId: string;
+      slug: string;
+      displayName: string;
+      /** @enum {string} */
+      kind: 'favorites' | 'curated' | 'duplicates-review';
+      assetCount: number;
+    };
+    AlbumsResponse: {
+      /** Format: uuid */
+      libraryId: string;
+      items: components['schemas']['AlbumSummary'][];
+    };
+    AlbumDetailResponse: {
+      /** Format: uuid */
+      libraryId: string;
+      album: components['schemas']['AlbumSummary'];
+      items: components['schemas']['AssetSummary'][];
+      pageInfo: components['schemas']['CursorPageInfo'];
+    };
+    DownloadGrant: {
+      /** Format: uuid */
+      assetId: string;
+      /** @enum {string} */
+      status: 'pending' | 'ready';
+      /** Format: uri */
+      url?: string;
+      /** Format: date-time */
+      expiresAt?: string;
+    };
+    BatchDownloadRequest: {
+      /** Format: uuid */
+      libraryId: string;
+      assetIds: string[];
+    };
+    BatchDownloadJob: {
+      /** Format: uuid */
+      jobId: string;
+      /** @enum {string} */
+      status: 'queued' | 'running' | 'ready' | 'failed';
+    };
+    CreateAlbumRequest: {
+      /** Format: uuid */
+      libraryId: string;
+      displayName: string;
+    };
+    AddAlbumAssetRequest: {
+      /** Format: uuid */
+      libraryId: string;
+      /** Format: uuid */
+      assetId: string;
+    };
+    SetFavoriteRequest: {
+      /** Format: uuid */
+      libraryId: string;
+      favorite: boolean;
+    };
+    ExportRequest: {
+      /** Format: uuid */
+      libraryId: string;
+      /** @enum {string} */
+      scope: 'library' | 'album' | 'date-range';
+      /** Format: uuid */
+      albumId?: string;
+      /** Format: date */
+      dateFrom?: string;
+      /** Format: date */
+      dateTo?: string;
+    };
+    RecoveryPlan: {
+      assetCount: number;
+      objectCount: number;
+      backupVerifiedCount: number;
+      requiredMetadata: string[];
+      warnings?: string[];
+    };
+    ExportJob: {
+      id: string;
+      /** Format: uuid */
+      libraryId: string;
+      /** @enum {string} */
+      scope: 'library' | 'album' | 'date-range';
+      /** @enum {string} */
+      status: 'ready' | 'failed';
+      assetCount: number;
+      /** Format: uri */
+      archiveUrl?: string;
+      /** Format: uri */
+      redactedManifestUrl?: string;
+      /** Format: date-time */
+      expiresAt: string;
+      /** Format: date-time */
+      createdAt: string;
+      recoveryPlan: components['schemas']['RecoveryPlan'];
+    };
+    UpdateProviderSettingsRequest: {
+      bucket?: string;
+      region?: string;
+      endpoint?: string;
+      keyPrefix?: string;
+      accessKeyId?: string;
+      accessKeySecret?: string;
+      sessionToken?: string;
+      forcePathStyle?: boolean;
+      allowedOrigins?: string[];
+      privateRead?: boolean;
+      publicReadBlockMode?: string;
+      /** Format: uri */
+      healthCheckUrl?: string;
+      corsConfigPath?: string;
+    };
+    ProviderSettingsResponse: {
+      providerName: string;
+      /** @enum {string} */
+      status: 'updated';
+      summary: {
+        [key: string]: unknown;
+      };
+    };
+    UpdatePrivacyPolicyRequest: {
+      /** @enum {string} */
+      gpsMode: 'hidden' | 'owner-only';
+      /** @enum {string} */
+      ocrMode: 'hidden' | 'preview' | 'full';
+      /** @enum {string} */
+      captionMode: 'hidden' | 'preview' | 'full';
+      /** @enum {string} */
+      embeddingMode: 'disabled' | 'private';
+    };
+    PrivacyPolicy: {
+      gpsMode: string;
+      ocrMode: string;
+      captionMode: string;
+      embeddingMode: string;
+    };
+    ProviderRunDebugRecord: {
+      /** Format: uuid */
+      runId: string;
+      status: string;
+      debugPayload?: {
+        [key: string]: unknown;
+      };
+    };
+  };
+  responses: {
+    /** @description 标准错误响应 */
+    ErrorResponse: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Error'];
+      };
+    };
+  };
+  parameters: {
+    SessionId: string;
+    AssetId: string;
+    ProviderName: string;
+    AlbumId: string;
+    RunId: string;
+    LibraryId: string;
+  };
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    getHealth: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 健康检查结果 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthResponse"];
-                };
-            };
-        };
+  getHealth: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    login: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description 健康检查结果 */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LoginRequest"];
-            };
+        content: {
+          'application/json': components['schemas']['HealthResponse'];
         };
-        responses: {
-            /** @description 登录成功并返回会话与访问令牌 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthSessionResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+      };
     };
-    getCurrentSession: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 当前会话信息 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthSessionResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+  };
+  login: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    refreshRecentAuthentication: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RefreshRecentAuthRequest"];
-            };
-        };
-        responses: {
-            /** @description 已刷新近期认证状态 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthSessionResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LoginRequest'];
+      };
     };
-    createImportSession: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description 登录成功并返回会话与访问令牌 */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateImportSessionRequest"];
-            };
+        content: {
+          'application/json': components['schemas']['AuthSessionResponse'];
         };
-        responses: {
-            /** @description 导入会话已创建 */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImportSession"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+      };
+      default: components['responses']['ErrorResponse'];
     };
-    createUploadTicket: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sessionId: components["parameters"]["SessionId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateUploadTicketRequest"];
-            };
-        };
-        responses: {
-            /** @description 上传凭据已签发 */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UploadTicket"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+  };
+  getCurrentSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    confirmUpload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sessionId: components["parameters"]["SessionId"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description 当前会话信息 */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConfirmUploadRequest"];
-            };
+        content: {
+          'application/json': components['schemas']['AuthSessionResponse'];
         };
-        responses: {
-            /** @description 上传已确认并开始后续处理 */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AssetAcceptedResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+      };
+      default: components['responses']['ErrorResponse'];
     };
-    listTimelineAssets: {
-        parameters: {
-            query: {
-                libraryId: components["parameters"]["LibraryId"];
-                cursor?: string;
-                limit?: number;
-                dateFrom?: string;
-                dateTo?: string;
-                location?: string;
-                stage?: string;
-                backupStatus?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 时间线结果 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TimelineResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+  };
+  refreshRecentAuthentication: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    listPlaceSummaries: {
-        parameters: {
-            query: {
-                libraryId: components["parameters"]["LibraryId"];
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 地点聚合结果 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlacesResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RefreshRecentAuthRequest'];
+      };
     };
-    listDuplicateCandidates: {
-        parameters: {
-            query: {
-                libraryId: components["parameters"]["LibraryId"];
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description 已刷新近期认证状态 */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description 重复候选结果 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DuplicatesResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
+        content: {
+          'application/json': components['schemas']['AuthSessionResponse'];
         };
+      };
+      default: components['responses']['ErrorResponse'];
     };
-    searchAssets: {
-        parameters: {
-            query: {
-                libraryId: components["parameters"]["LibraryId"];
-                query: string;
-                cursor?: string;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 搜索结果 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+  };
+  createImportSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    listAlbums: {
-        parameters: {
-            query: {
-                libraryId: components["parameters"]["LibraryId"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 相册列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AlbumsResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateImportSessionRequest'];
+      };
     };
-    createAlbum: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description 导入会话已创建 */
+      201: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateAlbumRequest"];
-            };
+        content: {
+          'application/json': components['schemas']['ImportSession'];
         };
-        responses: {
-            /** @description 相册已创建 */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AlbumSummary"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+      };
+      default: components['responses']['ErrorResponse'];
     };
-    getAlbumDetail: {
-        parameters: {
-            query: {
-                libraryId: components["parameters"]["LibraryId"];
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                albumId: components["parameters"]["AlbumId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 相册详情 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AlbumDetailResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+  };
+  createUploadTicket: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        sessionId: components['parameters']['SessionId'];
+      };
+      cookie?: never;
     };
-    addAlbumAsset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                albumId: components["parameters"]["AlbumId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddAlbumAssetRequest"];
-            };
-        };
-        responses: {
-            /** @description 相册已更新 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status: string;
-                        /** Format: uuid */
-                        albumId: string;
-                        /** Format: uuid */
-                        assetId: string;
-                    };
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateUploadTicketRequest'];
+      };
     };
-    getAssetDetail: {
-        parameters: {
-            query: {
-                libraryId: components["parameters"]["LibraryId"];
-            };
-            header?: never;
-            path: {
-                assetId: components["parameters"]["AssetId"];
-            };
-            cookie?: never;
+    responses: {
+      /** @description 上传凭据已签发 */
+      201: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description 资产详情 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AssetDetail"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
+        content: {
+          'application/json': components['schemas']['UploadTicket'];
         };
+      };
+      default: components['responses']['ErrorResponse'];
     };
-    setFavoriteAsset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                assetId: components["parameters"]["AssetId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetFavoriteRequest"];
-            };
-        };
-        responses: {
-            /** @description 收藏状态已更新 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status: string;
-                        /** Format: uuid */
-                        assetId: string;
-                        favorite: boolean;
-                        album?: components["schemas"]["AlbumSummary"];
-                    };
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+  };
+  confirmUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        sessionId: components['parameters']['SessionId'];
+      };
+      cookie?: never;
     };
-    requestAssetDownload: {
-        parameters: {
-            query: {
-                libraryId: components["parameters"]["LibraryId"];
-            };
-            header?: never;
-            path: {
-                assetId: components["parameters"]["AssetId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 下载访问已受理 */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DownloadGrant"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ConfirmUploadRequest'];
+      };
     };
-    createBatchDownload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description 上传已确认并开始后续处理 */
+      202: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchDownloadRequest"];
-            };
+        content: {
+          'application/json': components['schemas']['AssetAcceptedResponse'];
         };
-        responses: {
-            /** @description 批量下载请求已受理 */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchDownloadJob"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+      };
+      default: components['responses']['ErrorResponse'];
     };
-    createExportJob: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ExportRequest"];
-            };
-        };
-        responses: {
-            /** @description 导出任务已受理 */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExportJob"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+  };
+  listTimelineAssets: {
+    parameters: {
+      query: {
+        libraryId: components['parameters']['LibraryId'];
+        cursor?: string;
+        limit?: number;
+        dateFrom?: string;
+        dateTo?: string;
+        location?: string;
+        stage?: string;
+        backupStatus?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    updateProviderSettings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                providerName: components["parameters"]["ProviderName"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description 时间线结果 */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateProviderSettingsRequest"];
-            };
+        content: {
+          'application/json': components['schemas']['TimelineResponse'];
         };
-        responses: {
-            /** @description Provider 设置已更新 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProviderSettingsResponse"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+      };
+      default: components['responses']['ErrorResponse'];
     };
-    updatePrivacyPolicy: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdatePrivacyPolicyRequest"];
-            };
-        };
-        responses: {
-            /** @description 隐私策略已更新 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PrivacyPolicy"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
-        };
+  };
+  listPlaceSummaries: {
+    parameters: {
+      query: {
+        libraryId: components['parameters']['LibraryId'];
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    getProviderRunDebug: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                runId: components["parameters"]["RunId"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description 地点聚合结果 */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description 调试保留信息 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProviderRunDebugRecord"];
-                };
-            };
-            default: components["responses"]["ErrorResponse"];
+        content: {
+          'application/json': components['schemas']['PlacesResponse'];
         };
+      };
+      default: components['responses']['ErrorResponse'];
     };
+  };
+  listDuplicateCandidates: {
+    parameters: {
+      query: {
+        libraryId: components['parameters']['LibraryId'];
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 重复候选结果 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DuplicatesResponse'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  searchAssets: {
+    parameters: {
+      query: {
+        libraryId: components['parameters']['LibraryId'];
+        query: string;
+        cursor?: string;
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 搜索结果 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SearchResponse'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  listAlbums: {
+    parameters: {
+      query: {
+        libraryId: components['parameters']['LibraryId'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 相册列表 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AlbumsResponse'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  createAlbum: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateAlbumRequest'];
+      };
+    };
+    responses: {
+      /** @description 相册已创建 */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AlbumSummary'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  getAlbumDetail: {
+    parameters: {
+      query: {
+        libraryId: components['parameters']['LibraryId'];
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        albumId: components['parameters']['AlbumId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 相册详情 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AlbumDetailResponse'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  addAlbumAsset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        albumId: components['parameters']['AlbumId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AddAlbumAssetRequest'];
+      };
+    };
+    responses: {
+      /** @description 相册已更新 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            status: string;
+            /** Format: uuid */
+            albumId: string;
+            /** Format: uuid */
+            assetId: string;
+          };
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  getAssetDetail: {
+    parameters: {
+      query: {
+        libraryId: components['parameters']['LibraryId'];
+      };
+      header?: never;
+      path: {
+        assetId: components['parameters']['AssetId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 资产详情 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AssetDetail'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  setFavoriteAsset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        assetId: components['parameters']['AssetId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SetFavoriteRequest'];
+      };
+    };
+    responses: {
+      /** @description 收藏状态已更新 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            status: string;
+            /** Format: uuid */
+            assetId: string;
+            favorite: boolean;
+            album?: components['schemas']['AlbumSummary'];
+          };
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  requestAssetDownload: {
+    parameters: {
+      query: {
+        libraryId: components['parameters']['LibraryId'];
+      };
+      header?: never;
+      path: {
+        assetId: components['parameters']['AssetId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 下载访问已受理 */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DownloadGrant'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  createBatchDownload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BatchDownloadRequest'];
+      };
+    };
+    responses: {
+      /** @description 批量下载请求已受理 */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BatchDownloadJob'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  createExportJob: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ExportRequest'];
+      };
+    };
+    responses: {
+      /** @description 导出任务已受理 */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ExportJob'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  updateProviderSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        providerName: components['parameters']['ProviderName'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateProviderSettingsRequest'];
+      };
+    };
+    responses: {
+      /** @description Provider 设置已更新 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProviderSettingsResponse'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  updatePrivacyPolicy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdatePrivacyPolicyRequest'];
+      };
+    };
+    responses: {
+      /** @description 隐私策略已更新 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PrivacyPolicy'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
+  getProviderRunDebug: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        runId: components['parameters']['RunId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 调试保留信息 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProviderRunDebugRecord'];
+        };
+      };
+      default: components['responses']['ErrorResponse'];
+    };
+  };
 }
